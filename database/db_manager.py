@@ -315,6 +315,7 @@ class DatabaseManager(QuizManager):
             SELECT
                 id, file_path, display_name, university, olympiad,
                 year, subject, is_manual, question_count,
+                verification_status, manual_verification_override,
                 created_at, updated_at
             FROM pdf_files
             WHERE 1=1
@@ -364,6 +365,7 @@ class DatabaseManager(QuizManager):
             SELECT
                 id, file_path, display_name, university, olympiad,
                 year, subject, is_manual, question_count,
+                verification_status, manual_verification_override,
                 created_at, updated_at
             FROM pdf_files
             WHERE id = ?

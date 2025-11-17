@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ÐžÐ»Ð¸Ð¼Ð¿Ð¸Ð°Ð´Ð½Ñ‹Ðµ Ð²Ð¾Ð¿Ñ€Ð¾ÑÑ‹ - Ð¡Ð¸ÑÑ‚ÐµÐ¼Ð° Ð¾Ð±ÑƒÑ‡ÐµÐ½Ð¸Ñ</title>
+    <title>Олимпиадные вопросы - Система обучения</title>
     <style>
         * {
             margin: 0;
@@ -84,7 +84,7 @@
             display: block;
         }
 
-        /* Ð¤Ð¸Ð»ÑŒÑ‚Ñ€Ñ‹ */
+        /* Фильтры */
         .filters {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -132,7 +132,7 @@
             transform: scale(1.05);
         }
 
-        /* Ð’Ð¾Ð¿Ñ€Ð¾ÑÑ‹ */
+        /* Вопросы */
         .question-list {
             display: flex;
             flex-direction: column;
@@ -277,7 +277,7 @@
             margin-bottom: 20px;
         }
 
-        /* Ð¢ÐµÑÑ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ðµ */
+        /* Тестирование */
         .test-controls {
             display: flex;
             gap: 15px;
@@ -323,7 +323,7 @@
             margin: 20px 0;
         }
 
-        /* ÐœÐ¾Ð´Ð°Ð»ÑŒÐ½Ð¾Ðµ Ð¾ÐºÐ½Ð¾ */
+        /* Модальное окно */
         #edit-modal {
             display: none;
             position: fixed;
@@ -496,195 +496,360 @@
             font-size: 0.85em;
             margin-left: 10px;
         }
+
+        /* Статусы PDF файлов */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .status-verified {
+            background: #4caf50;
+            color: white;
+        }
+
+        .status-partially-verified {
+            background: #ff9800;
+            color: white;
+        }
+
+        .status-not-verified {
+            background: #f44336;
+            color: white;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-indicator.green {
+            background: #4caf50;
+        }
+
+        .status-indicator.yellow {
+            background: #ff9800;
+        }
+
+        .status-indicator.red {
+            background: #f44336;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>ðŸŽ“ Ð¡Ð¸ÑÑ‚ÐµÐ¼Ð° Ð¾Ð»Ð¸Ð¼Ð¿Ð¸Ð°Ð´Ð½Ñ‹Ñ… Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²</h1>
-            <p class="subtitle">ÐžÐ±ÑƒÑ‡ÐµÐ½Ð¸Ðµ Ð¸ Ð¿Ð¾Ð´Ð³Ð¾Ñ‚Ð¾Ð²ÐºÐ° Ðº Ð¾Ð»Ð¸Ð¼Ð¿Ð¸Ð°Ð´Ð°Ð¼</p>
+            <h1>🎓 Система олимпиадных вопросов</h1>
+            <p class="subtitle">Обучение и подготовка к олимпиадам</p>
         </header>
 
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('browse')">ðŸ“š ÐŸÑ€Ð¾ÑÐ¼Ð¾Ñ‚Ñ€ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²</button>
-            <button class="tab" onclick="switchTab('test')">âœï¸ Ð¢ÐµÑÑ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ðµ</button>
-            <button class="tab" onclick="switchTab('quizzes')">ðŸŽ¯ Ð’Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹</button>
-            <button class="tab" onclick="switchTab('stats')">ðŸ“Š Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ°</button>
+            <button class="tab active" onclick="switchTab('browse')">📚 Просмотр вопросов</button>
+            <button class="tab" onclick="switchTab('test')">✏️ Тестирование</button>
+            <button class="tab" onclick="switchTab('quizzes')">🎯 Викторины</button>
+            <button class="tab" onclick="switchTab('stats')">📊 Статистика</button>
+            <button class="tab" onclick="switchTab('pdfs')">📄 Управление PDF</button>
+            <button class="tab" onclick="switchTab('admin')">⚙️ Администрирование</button>
         </div>
 
         <div class="content">
-            <!-- ÐŸÑ€Ð¾ÑÐ¼Ð¾Ñ‚Ñ€ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð² -->
+            <!-- Просмотр вопросов -->
             <div id="browse" class="tab-content active">
-                <h2>ÐŸÐ¾Ð¸ÑÐº Ð¸ Ð¿Ñ€Ð¾ÑÐ¼Ð¾Ñ‚Ñ€ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²</h2>
+                <h2>Поиск и просмотр вопросов</h2>
 
                 <div class="filters">
                     <div class="filter-group">
-                        <label>Ð˜ÑÑ…Ð¾Ð´Ð½Ñ‹Ð¹ PDF</label>
+                        <label>Исходный PDF</label>
                         <select id="filter-source-pdf" onchange="applyFilters()">
-                            <option value="">Ð’ÑÐµ PDF Ñ„Ð°Ð¹Ð»Ñ‹</option>
+                            <option value="">Все PDF файлы</option>
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label>ÐŸÑ€ÐµÐ´Ð¼ÐµÑ‚</label>
+                        <label>Предмет</label>
                         <select id="filter-subject">
-                            <option value="">Ð’ÑÐµ Ð¿Ñ€ÐµÐ´Ð¼ÐµÑ‚Ñ‹</option>
+                            <option value="">Все предметы</option>
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label>Ð£Ð½Ð¸Ð²ÐµÑ€ÑÐ¸Ñ‚ÐµÑ‚</label>
+                        <label>Университет</label>
                         <select id="filter-university">
-                            <option value="">Ð’ÑÐµ ÑƒÐ½Ð¸Ð²ÐµÑ€ÑÐ¸Ñ‚ÐµÑ‚Ñ‹</option>
+                            <option value="">Все университеты</option>
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label>Ð“Ð¾Ð´</label>
+                        <label>Год</label>
                         <select id="filter-year">
-                            <option value="">Ð’ÑÐµ Ð³Ð¾Ð´Ñ‹</option>
+                            <option value="">Все годы</option>
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label>Ð¢Ð¸Ð¿ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ°</label>
+                        <label>Тип вопроса</label>
                         <select id="filter-type">
-                            <option value="">Ð’ÑÐµ Ñ‚Ð¸Ð¿Ñ‹</option>
-                            <option value="choice">ÐžÐ´Ð¸Ð½Ð¾Ñ‡Ð½Ñ‹Ð¹ Ð²Ñ‹Ð±Ð¾Ñ€</option>
-                            <option value="multiple_choice">ÐœÐ½Ð¾Ð¶ÐµÑÑ‚Ð²ÐµÐ½Ð½Ñ‹Ð¹ Ð²Ñ‹Ð±Ð¾Ñ€</option>
-                            <option value="matching">Ð¡Ð¾Ð¾Ñ‚Ð²ÐµÑ‚ÑÑ‚Ð²Ð¸Ðµ</option>
-                            <option value="text">Ð¢ÐµÐºÑÑ‚Ð¾Ð²Ñ‹Ð¹ Ð¾Ñ‚Ð²ÐµÑ‚</option>
+                            <option value="">Все типы</option>
+                            <option value="choice">Одиночный выбор</option>
+                            <option value="multiple_choice">Множественный выбор</option>
+                            <option value="matching">Соответствие</option>
+                            <option value="text">Текстовый ответ</option>
+                            <option value="essay">Эссе</option>
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label>Ð¡Ð»Ð¾Ð¶Ð½Ð¾ÑÑ‚ÑŒ</label>
+                        <label>Сложность</label>
                         <select id="filter-difficulty">
-                            <option value="">Ð›ÑŽÐ±Ð°Ñ</option>
-                            <option value="1">1 (Ð›ÐµÐ³ÐºÐ¾)</option>
+                            <option value="">Любая</option>
+                            <option value="1">1 (Легко)</option>
                             <option value="2">2</option>
-                            <option value="3">3 (Ð¡Ñ€ÐµÐ´Ð½Ðµ)</option>
+                            <option value="3">3 (Средне)</option>
                             <option value="4">4</option>
-                            <option value="5">5 (Ð¡Ð»Ð¾Ð¶Ð½Ð¾)</option>
+                            <option value="5">5 (Сложно)</option>
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label>ÐŸÑ€Ð¾Ð²ÐµÑ€ÐºÐ°</label>
+                        <label>Проверка</label>
                         <select id="filter-verified">
-                            <option value="">Ð’ÑÐµ Ð²Ð¾Ð¿Ñ€Ð¾ÑÑ‹</option>
-                            <option value="true">âœ“ Ð¢Ð¾Ð»ÑŒÐºÐ¾ Ð¿Ñ€Ð¾Ð²ÐµÑ€ÐµÐ½Ð½Ñ‹Ðµ</option>
-                            <option value="false">âš  Ð¢Ð¾Ð»ÑŒÐºÐ¾ Ð½ÐµÐ¿Ñ€Ð¾Ð²ÐµÑ€ÐµÐ½Ð½Ñ‹Ðµ</option>
+                            <option value="">Все вопросы</option>
+                            <option value="true">✓ Только проверенные</option>
+                            <option value="false">⚠ Только непроверенные</option>
                         </select>
                     </div>
                 </div>
 
-                <button onclick="applyFilters()">ðŸ” ÐŸÑ€Ð¸Ð¼ÐµÐ½Ð¸Ñ‚ÑŒ Ñ„Ð¸Ð»ÑŒÑ‚Ñ€Ñ‹</button>
+                <button onclick="applyFilters()">🔍 Применить фильтры</button>
 
                 <div id="questions-container" class="question-list">
-                    <!-- Ð’Ð¾Ð¿Ñ€Ð¾ÑÑ‹ Ð±ÑƒÐ´ÑƒÑ‚ Ð·Ð°Ð³Ñ€ÑƒÐ¶ÐµÐ½Ñ‹ Ð´Ð¸Ð½Ð°Ð¼Ð¸Ñ‡ÐµÑÐºÐ¸ -->
+                    <!-- Вопросы будут загружены динамически -->
                 </div>
             </div>
 
-            <!-- Ð¢ÐµÑÑ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ðµ -->
+            <!-- Тестирование -->
             <div id="test" class="tab-content">
-                <h2>Ð ÐµÐ¶Ð¸Ð¼ Ñ‚ÐµÑÑ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ñ</h2>
+                <h2>Режим тестирования</h2>
 
                 <div class="test-controls">
                     <div class="filter-group">
-                        <label>ÐŸÑ€ÐµÐ´Ð¼ÐµÑ‚</label>
+                        <label>Предмет</label>
                         <select id="test-subject">
-                            <option value="">Ð’ÑÐµ Ð¿Ñ€ÐµÐ´Ð¼ÐµÑ‚Ñ‹</option>
+                            <option value="">Все предметы</option>
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label>ÐšÐ¾Ð»Ð¸Ñ‡ÐµÑÑ‚Ð²Ð¾ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²</label>
+                        <label>Количество вопросов</label>
                         <input type="number" id="test-count" value="10" min="1" max="50">
                     </div>
-                    <button onclick="startTest()">â–¶ï¸ ÐÐ°Ñ‡Ð°Ñ‚ÑŒ Ñ‚ÐµÑÑ‚</button>
+                    <button onclick="startTest()">▶️ Начать тест</button>
                 </div>
 
                 <div id="test-container">
-                    <!-- Ð¢ÐµÑÑ‚ Ð±ÑƒÐ´ÐµÑ‚ Ð·Ð°Ð³Ñ€ÑƒÐ¶ÐµÐ½ Ð·Ð´ÐµÑÑŒ -->
+                    <!-- Тест будет загружен здесь -->
                 </div>
             </div>
 
-            <!-- Ð’Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹ -->
+            <!-- Викторины -->
             <div id="quizzes" class="tab-content">
-                <h2>Ð£Ð¿Ñ€Ð°Ð²Ð»ÐµÐ½Ð¸Ðµ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ð°Ð¼Ð¸</h2>
+                <h2>Управление викторинами</h2>
 
-                <!-- Ð¡Ð¿Ð¸ÑÐ¾Ðº Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½ -->
+                <!-- Список викторин -->
                 <div id="quizzes-list" style="margin-bottom: 30px;">
-                    <h3>ÐœÐ¾Ð¸ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹</h3>
+                    <h3>Мои викторины</h3>
                     <div id="quizzes-container">
-                        <!-- Ð’Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹ Ð±ÑƒÐ´ÑƒÑ‚ Ð·Ð°Ð³Ñ€ÑƒÐ¶ÐµÐ½Ñ‹ Ð·Ð´ÐµÑÑŒ -->
+                        <!-- Викторины будут загружены здесь -->
                     </div>
                 </div>
 
-                <!-- Ð¡Ð¾Ð·Ð´Ð°Ð½Ð¸Ðµ Ð½Ð¾Ð²Ð¾Ð¹ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹ -->
+                <!-- Создание новой викторины -->
                 <div class="create-quiz-section">
-                    <h3>Ð¡Ð¾Ð·Ð´Ð°Ñ‚ÑŒ Ð½Ð¾Ð²ÑƒÑŽ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñƒ</h3>
+                    <h3>Создать новую викторину</h3>
 
                     <div class="form-group">
-                        <label>ÐÐ°Ð·Ð²Ð°Ð½Ð¸Ðµ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹</label>
-                        <input type="text" id="quiz-title" placeholder="ÐÐ°Ð¿Ñ€Ð¸Ð¼ÐµÑ€: Ð¤Ð¸Ð»Ð¾ÑÐ¾Ñ„Ð¸Ñ 2024">
+                        <label>Название викторины</label>
+                        <input type="text" id="quiz-title" placeholder="Например: Философия 2024">
                     </div>
 
                     <div class="form-group">
-                        <label>ÐžÐ¿Ð¸ÑÐ°Ð½Ð¸Ðµ (Ð¾Ð¿Ñ†Ð¸Ð¾Ð½Ð°Ð»ÑŒÐ½Ð¾)</label>
-                        <textarea id="quiz-description" rows="3" placeholder="ÐšÑ€Ð°Ñ‚ÐºÐ¾Ðµ Ð¾Ð¿Ð¸ÑÐ°Ð½Ð¸Ðµ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹"></textarea>
+                        <label>Описание (опционально)</label>
+                        <textarea id="quiz-description" rows="3" placeholder="Краткое описание викторины"></textarea>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Ð’Ð°ÑˆÐµ Ð¸Ð¼Ñ (ÑƒÑ‡Ð¸Ñ‚ÐµÐ»ÑŒ)</label>
-                            <input type="text" id="quiz-creator" placeholder="Ð˜Ð²Ð°Ð½ Ð˜Ð²Ð°Ð½Ð¾Ð²Ð¸Ñ‡">
+                            <label>Ваше имя (учитель)</label>
+                            <input type="text" id="quiz-creator" placeholder="Иван Иванович">
                         </div>
                         <div class="form-group">
-                            <label>ÐœÐ°ÐºÑÐ¸Ð¼ÑƒÐ¼ Ð¿Ð¾Ð¿Ñ‹Ñ‚Ð¾Ðº</label>
+                            <label>Максимум попыток</label>
                             <input type="number" id="quiz-max-attempts" value="1" min="1" max="10">
                         </div>
                     </div>
 
-                    <h4 style="margin-top: 20px;">Ð’Ñ‹Ð±Ð¾Ñ€ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²:</h4>
+                    <h4 style="margin-top: 20px;">Выбор вопросов:</h4>
 
                     <div class="quiz-creation-methods">
-                        <button onclick="showPdfSelector()" class="btn-secondary">ðŸ“„ Ð˜Ð· PDF Ñ„Ð°Ð¹Ð»Ð°</button>
-                        <button onclick="showManualSelector()" class="btn-secondary">âœï¸ Ð’Ñ‹Ð±Ñ€Ð°Ñ‚ÑŒ Ð²Ñ€ÑƒÑ‡Ð½ÑƒÑŽ</button>
+                        <button onclick="showPdfSelector()" class="btn-secondary">📄 Из PDF файла</button>
+                        <button onclick="showManualSelector()" class="btn-secondary">✏️ Выбрать вручную</button>
                     </div>
 
-                    <!-- Ð’Ñ‹Ð±Ð¾Ñ€ Ð¸Ð· PDF -->
+                    <!-- Выбор из PDF -->
                     <div id="pdf-selector" style="display: none; margin-top: 20px;">
-                        <h4>Ð’Ñ‹Ð±ÐµÑ€Ð¸Ñ‚Ðµ PDF Ñ„Ð°Ð¹Ð»:</h4>
+                        <h4>Выберите PDF файл:</h4>
                         <select id="pdf-select" onchange="loadQuestionsFromPdf()">
-                            <option value="">-- Ð’Ñ‹Ð±ÐµÑ€Ð¸Ñ‚Ðµ PDF --</option>
+                            <option value="">-- Выберите PDF --</option>
                         </select>
                         <div id="pdf-questions-preview" style="margin-top: 15px;">
-                            <!-- ÐŸÑ€ÐµÐ²ÑŒÑŽ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð² Ð¸Ð· PDF -->
+                            <!-- Превью вопросов из PDF -->
                         </div>
                     </div>
 
-                    <!-- Ð ÑƒÑ‡Ð½Ð¾Ð¹ Ð²Ñ‹Ð±Ð¾Ñ€ -->
+                    <!-- Ручной выбор -->
                     <div id="manual-selector" style="display: none; margin-top: 20px;">
-                        <h4>Ð’Ñ‹Ð±Ñ€Ð°Ð½Ð½Ñ‹Ðµ Ð²Ð¾Ð¿Ñ€Ð¾ÑÑ‹:</h4>
+                        <h4>Выбранные вопросы:</h4>
                         <div id="selected-questions" class="selected-questions-list">
-                            <p style="color: #999;">ÐŸÐµÑ€ÐµÐ¹Ð´Ð¸Ñ‚Ðµ Ð½Ð° Ð²ÐºÐ»Ð°Ð´ÐºÑƒ "ÐŸÑ€Ð¾ÑÐ¼Ð¾Ñ‚Ñ€ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²", Ð½Ð°Ð¹Ð´Ð¸Ñ‚Ðµ Ð½ÑƒÐ¶Ð½Ñ‹Ðµ Ð²Ð¾Ð¿Ñ€Ð¾ÑÑ‹ Ð¸ Ð´Ð¾Ð±Ð°Ð²ÑŒÑ‚Ðµ Ð¸Ñ… Ð² Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñƒ.</p>
+                            <p style="color: #999;">Перейдите на вкладку "Просмотр вопросов", найдите нужные вопросы и добавьте их в викторину.</p>
                         </div>
                     </div>
 
                     <div style="margin-top: 20px;">
                         <button onclick="createQuiz()" class="btn-primary" style="width: auto; padding: 15px 40px;">
-                            âœ¨ Ð¡Ð¾Ð·Ð´Ð°Ñ‚ÑŒ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñƒ
+                            ✨ Создать викторину
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ° -->
+            <!-- Статистика -->
             <div id="stats" class="tab-content">
-                <h2>Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ° Ð±Ð°Ð·Ñ‹ Ð´Ð°Ð½Ð½Ñ‹Ñ…</h2>
+                <h2>Статистика базы данных</h2>
                 <div id="stats-container">
-                    <!-- Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ° Ð±ÑƒÐ´ÐµÑ‚ Ð·Ð°Ð³Ñ€ÑƒÐ¶ÐµÐ½Ð° Ð·Ð´ÐµÑÑŒ -->
+                    <!-- Статистика будет загружена здесь -->
+                </div>
+            </div>
+
+            <!-- Управление PDF -->
+            <div id="pdfs" class="tab-content">
+                <h2>Управление PDF файлами</h2>
+
+                <!-- Загрузка нового PDF -->
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 30px;">
+                    <h3>📤 Загрузить новый PDF файл</h3>
+                    <form id="upload-pdf-form" style="margin-top: 15px;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>PDF файл</label>
+                                <input type="file" id="pdf-file" accept=".pdf" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Отображаемое имя</label>
+                                <input type="text" id="pdf-display-name" placeholder="Название файла">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Университет</label>
+                                <input type="text" id="pdf-university" placeholder="МГУ, СПбГУ и т.д.">
+                            </div>
+                            <div class="form-group">
+                                <label>Олимпиада</label>
+                                <input type="text" id="pdf-olympiad" placeholder="Ломоносов, Высшая проба">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Предмет</label>
+                                <input type="text" id="pdf-subject" placeholder="Философия, История">
+                            </div>
+                            <div class="form-group">
+                                <label>Год</label>
+                                <input type="text" id="pdf-year" placeholder="2024">
+                            </div>
+                        </div>
+
+                        <button type="submit" style="margin-top: 10px;">📤 Загрузить и распарсить</button>
+                    </form>
+                    <div id="upload-status" style="margin-top: 15px;"></div>
+                </div>
+
+                <!-- Список PDF файлов -->
+                <div>
+                    <h3>📚 Загруженные PDF файлы</h3>
+
+                    <div class="filters" style="margin-top: 15px;">
+                        <div class="filter-group">
+                            <label>Университет</label>
+                            <select id="pdf-filter-university">
+                                <option value="">Все университеты</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Предмет</label>
+                            <select id="pdf-filter-subject">
+                                <option value="">Все предметы</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Год</label>
+                            <select id="pdf-filter-year">
+                                <option value="">Все годы</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Поиск</label>
+                            <input type="text" id="pdf-search" placeholder="Поиск по названию...">
+                        </div>
+                    </div>
+
+                    <button onclick="loadPDFList()" style="margin: 15px 0;">🔍 Применить фильтры</button>
+
+                    <div id="pdf-list-container">
+                        <!-- Список PDF будет загружен здесь -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Администрирование -->
+            <div id="admin" class="tab-content">
+                <h2>Администрирование системы</h2>
+
+                <!-- Управление базой данных -->
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3>🗄️ Управление базой данных</h3>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                        <div style="background: white; padding: 15px; border-radius: 8px;">
+                            <h4>💾 Создать бэкап</h4>
+                            <p style="color: #666; margin: 10px 0;">Создать резервную копию базы данных</p>
+                            <button onclick="createBackup()">📦 Создать бэкап</button>
+                            <div id="backup-status" style="margin-top: 10px;"></div>
+                        </div>
+
+                        <div style="background: white; padding: 15px; border-radius: 8px;">
+                            <h4>🔄 Синхронизация</h4>
+                            <p style="color: #666; margin: 10px 0;">Синхронизировать БД между директориями</p>
+                            <button onclick="syncDatabase()">🔄 Синхронизировать</button>
+                            <div id="sync-status" style="margin-top: 10px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Статистика системы -->
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 10px;">
+                    <h3>📊 Статистика системы</h3>
+                    <div id="admin-stats-container" style="margin-top: 15px;">
+                        <!-- Статистика будет загружена здесь -->
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ÐœÐ¾Ð´Ð°Ð»ÑŒÐ½Ð¾Ðµ Ð¾ÐºÐ½Ð¾ Ñ€ÐµÐ´Ð°ÐºÑ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ñ -->
+    <!-- Модальное окно редактирования -->
     <div id="edit-modal"></div>
 
     <script src="app.js"></script>
