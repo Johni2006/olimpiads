@@ -7,7 +7,7 @@ let allQuizzes = []; // Все созданные викторины
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
 
 // Загрузить список PDF файлов
-async function loadPDFList() {
+async function loadPDFListForQuiz() {
     try {
         const response = await fetch(`${API_URL}/source-pdfs`);
         const data = await response.json();
@@ -97,7 +97,7 @@ function displayQuizzes(quizzes) {
 function showPdfSelector() {
     document.getElementById('pdf-selector').style.display = 'block';
     document.getElementById('manual-selector').style.display = 'none';
-    loadPDFList();
+    loadPDFListForQuiz();
 }
 
 function showManualSelector() {

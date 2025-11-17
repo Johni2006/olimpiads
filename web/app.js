@@ -1,6 +1,9 @@
 // Конфигурация API
 const API_URL = 'http://localhost:5001/api';
 
+console.log('=== app.js загружен ===');
+window.APP_VERSION = '4.0';
+
 // Глобальное состояние
 let currentTest = null;
 let currentQuestionIndex = 0;
@@ -13,6 +16,7 @@ let testAnswers = [];
 async function init() {
     await loadFilters();
     await loadSourcePDFs();
+    await loadPDFFilters();  // Загружаем фильтры для PDF
     await loadQuestions();
     await loadStats();
 }
@@ -101,8 +105,61 @@ async function loadSourcePDFs() {
     }
 }
 
+async function loadPDFFilters() {
+    try {
+        // Получаем все PDF файлы для заполнения фильтров
+        const response = await fetch(`${API_URL}/pdfs?limit=1000`);
+        const data = await response.json();
+
+        if (data.success && data.pdfs) {
+            // Собираем уникальные значения
+            const universities = new Set();
+            const subjects = new Set();
+            const years = new Set();
+
+            data.pdfs.forEach(pdf => {
+                if (pdf.university) universities.add(pdf.university);
+                if (pdf.subject) subjects.add(pdf.subject);
+                if (pdf.year) years.add(pdf.year);
+            });
+
+            // Заполняем селекты
+            populateSelect('pdf-filter-university', Array.from(universities).sort());
+            populateSelect('pdf-filter-subject', Array.from(subjects).sort());
+            populateSelect('pdf-filter-year', Array.from(years).sort().reverse());
+
+            // Заполняем фильтр "Исходный PDF" списком всех PDF файлов
+            const pdfSourceSelect = document.getElementById('pdf-filter-source');
+            if (pdfSourceSelect) {
+                const firstOption = pdfSourceSelect.options[0];
+                pdfSourceSelect.innerHTML = '';
+                pdfSourceSelect.appendChild(firstOption);
+
+                // Сортируем по display_name и добавляем
+                const sortedPdfs = data.pdfs.sort((a, b) =>
+                    (a.display_name || a.file_path).localeCompare(b.display_name || b.file_path)
+                );
+
+                sortedPdfs.forEach(pdf => {
+                    const opt = document.createElement('option');
+                    opt.value = pdf.display_name || pdf.file_path;
+                    opt.textContent = `${pdf.display_name || pdf.file_path} (${pdf.question_count || 0} вопросов)`;
+                    pdfSourceSelect.appendChild(opt);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки фильтров PDF:', error);
+    }
+}
+
 function populateSelect(selectId, options) {
     const select = document.getElementById(selectId);
+    if (!select) {
+        console.warn(`Select element with id "${selectId}" not found`);
+        return;
+    }
+
     const currentValue = select.value;
 
     // Сохраняем первую опцию ("Все...")
@@ -110,7 +167,9 @@ function populateSelect(selectId, options) {
 
     // Очищаем
     select.innerHTML = '';
-    select.appendChild(firstOption);
+    if (firstOption) {
+        select.appendChild(firstOption);
+    }
 
     // Добавляем новые опции
     options.forEach(option => {
@@ -487,21 +546,28 @@ function displayStats(stats) {
 // =========================
 
 async function loadPDFList() {
-    const container = document.getElementById('pdf-list-container');
-    container.innerHTML = '<div class="loading">Загрузка списка PDF...</div>';
-
     try {
+        const container = document.getElementById('pdf-list-container');
+        if (!container) {
+            console.error('Контейнер pdf-list-container не найден!');
+            return;
+        }
+        container.innerHTML = '<div class="loading">Загрузка списка PDF...</div>';
+
         const params = new URLSearchParams();
+        params.append('limit', '1000'); // Загружаем до 1000 файлов
 
         const university = document.getElementById('pdf-filter-university')?.value;
         const subject = document.getElementById('pdf-filter-subject')?.value;
         const year = document.getElementById('pdf-filter-year')?.value;
         const search = document.getElementById('pdf-search')?.value;
+        const sourcePdf = document.getElementById('pdf-filter-source')?.value;
 
         if (university) params.append('university', university);
         if (subject) params.append('subject', subject);
         if (year) params.append('year', year);
         if (search) params.append('search', search);
+        if (sourcePdf) params.append('search', sourcePdf); // Используем search для фильтра по имени
 
         const response = await fetch(`${API_URL}/pdfs?${params}`);
         const data = await response.json();
@@ -533,6 +599,9 @@ function displayPDFList(pdfs) {
     const container = document.getElementById('pdf-list-container');
 
     container.innerHTML = `
+        <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <strong>📊 Найдено файлов:</strong> ${pdfs.length}
+        </div>
         <div style="margin-top: 20px;">
             ${pdfs.map(pdf => {
                 const statusClass = pdf.verification_status === 'verified' ? 'status-verified' :
@@ -804,30 +873,49 @@ async function viewPDFQuestions(pdfId) {
             return;
         }
 
+        // Подсчитываем статистику
+        const verifiedCount = questionsData.questions.filter(q => q.verified).length;
+        const unverifiedCount = questionsData.count - verifiedCount;
+        const verificationPercent = Math.round((verifiedCount / questionsData.count) * 100);
+
         // Создаем модальное окно с вопросами
         const modal = document.getElementById('edit-modal');
         modal.style.display = 'flex';
         modal.innerHTML = `
-            <div class="modal-content" style="max-width: 1000px;">
+            <div class="modal-content" style="max-width: 1200px;">
                 <div class="modal-header">
                     <h2>Вопросы из: ${pdf.display_name}</h2>
                     <button class="close-btn" onclick="closeEditModal()">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <p><strong>Всего вопросов:</strong> ${questionsData.count}</p>
-                    <div style="max-height: 500px; overflow-y: auto; margin-top: 20px;">
-                        ${questionsData.questions.slice(0, 20).map((q, idx) => `
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <strong>📊 Статистика проверки:</strong><br>
+                        Всего вопросов: ${questionsData.count} |
+                        ✓ Проверено: ${verifiedCount} (${verificationPercent}%) |
+                        ✗ Не проверено: ${unverifiedCount}
+                    </div>
+                    <div style="max-height: 600px; overflow-y: auto;">
+                        ${questionsData.questions.map((q, idx) => `
                             <div class="question-card" style="margin-bottom: 15px;">
-                                <div class="question-text">
-                                    <strong>${idx + 1}.</strong> ${q.text.substring(0, 200)}${q.text.length > 200 ? '...' : ''}
-                                </div>
-                                <div class="question-meta" style="margin-top: 10px;">
-                                    <span class="tag">${getTypeLabel(q.type)}</span>
-                                    ${q.verified ? '<span class="tag correct">✓ Проверено</span>' : '<span class="tag incorrect">✗ Не проверено</span>'}
+                                <div style="display: flex; justify-content: space-between; gap: 20px;">
+                                    <div style="flex: 1;">
+                                        <div class="question-text">
+                                            <strong>${idx + 1}.</strong> ${q.text.substring(0, 300)}${q.text.length > 300 ? '...' : ''}
+                                        </div>
+                                        <div class="question-meta" style="margin-top: 10px;">
+                                            <span class="tag">${getTypeLabel(q.type)}</span>
+                                            ${q.verified ? '<span class="tag correct">✓ Проверено</span>' : '<span class="tag incorrect">✗ Не проверено</span>'}
+                                            ${q.difficulty ? `<span class="tag difficulty">Сложность: ${q.difficulty}</span>` : ''}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <button class="edit-btn" onclick="editQuestionFromPDF(${q.id}, ${pdfId})" style="white-space: nowrap;">
+                                            ✏️ Редактировать
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         `).join('')}
-                        ${questionsData.count > 20 ? `<p style="text-align: center; color: #666;">... и еще ${questionsData.count - 20} вопросов</p>` : ''}
                     </div>
                 </div>
             </div>
@@ -835,6 +923,26 @@ async function viewPDFQuestions(pdfId) {
     } catch (error) {
         console.error('Ошибка просмотра вопросов:', error);
         alert('Ошибка: ' + error.message);
+    }
+}
+
+// Редактирование вопроса из просмотра PDF
+async function editQuestionFromPDF(questionId, pdfId) {
+    // Сохраняем pdfId для обновления после редактирования
+    window.currentPdfId = pdfId;
+
+    // Вызываем существующую функцию редактирования из edit.js
+    await showEditModal(questionId);
+
+    // После закрытия модального окна редактирования, обновляем список вопросов
+    // Это будет обработано в edit.js при сохранении
+}
+
+// Функция для обновления списка вопросов PDF после редактирования
+async function refreshPDFQuestions() {
+    if (window.currentPdfId) {
+        await viewPDFQuestions(window.currentPdfId);
+        await loadPDFList(); // Обновляем также список PDF для обновления статуса
     }
 }
 

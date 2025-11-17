@@ -200,8 +200,14 @@ async function saveQuestion() {
         if (result.success) {
             alert('✅ Вопрос успешно обновлён!');
             closeEditModal();
-            // Перезагружаем список вопросов
-            applyFilters();
+
+            // Если редактируем из просмотра PDF - обновляем список вопросов PDF
+            if (typeof refreshPDFQuestions === 'function' && window.currentPdfId) {
+                await refreshPDFQuestions();
+            } else {
+                // Иначе перезагружаем список вопросов на странице "Просмотр вопросов"
+                applyFilters();
+            }
         } else {
             alert('❌ Ошибка: ' + result.error);
         }
