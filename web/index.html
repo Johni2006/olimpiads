@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ÐžÐ»Ð¸Ð¼Ð¿Ð¸Ð°Ð´Ð½Ñ‹Ðµ Ð²Ð¾Ð¿Ñ€Ð¾ÑÑ‹ - Ð¡Ð¸ÑÑ‚ÐµÐ¼Ð° Ð¾Ð±ÑƒÑ‡ÐµÐ½Ð¸Ñ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.2em;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 15px 30px;
+            background: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: all 0.3s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Ð¤Ð¸Ð»ÑŒÑ‚Ñ€Ñ‹ */
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        .filter-group select, .filter-group input {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .filter-group select:focus, .filter-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+        }
+
+        /* Ð’Ð¾Ð¿Ñ€Ð¾ÑÑ‹ */
+        .question-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .question-card {
+            border: 2px solid #e0e0e0;
+            padding: 20px;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .question-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .question-text {
+            font-size: 1.1em;
+            line-height: 1.6;
+            color: #333;
+            flex: 1;
+        }
+
+        .question-meta {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .tag {
+            padding: 5px 12px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .tag.subject { background: #e3f2fd; color: #1976d2; }
+        .tag.university { background: #f3e5f5; color: #7b1fa2; }
+        .tag.year { background: #fff3e0; color: #e65100; }
+        .tag.difficulty { background: #ffebee; color: #c62828; }
+
+        .options {
+            margin: 15px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .option {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .option:hover {
+            background: #f5f5f5;
+        }
+
+        .option.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .option.correct {
+            border-color: #4caf50;
+            background: #e8f5e9;
+        }
+
+        .option.incorrect {
+            border-color: #f44336;
+            background: #ffebee;
+        }
+
+        .view-pdf-btn {
+            padding: 8px 15px;
+            background: #2196f3;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.9em;
+            transition: background 0.3s;
+        }
+
+        .view-pdf-btn:hover {
+            background: #1976d2;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 3em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        /* Ð¢ÐµÑÑ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ðµ */
+        .test-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar {
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4caf50, #81c784);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .test-result {
+            padding: 30px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .test-result h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .score {
+            font-size: 4em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+        }
+
+        /* ÐœÐ¾Ð´Ð°Ð»ÑŒÐ½Ð¾Ðµ Ð¾ÐºÐ½Ð¾ */
+        #edit-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            padding: 20px 30px;
+            border-bottom: 2px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 2em;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #555;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .option-edit {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        .option-edit input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+        }
+
+        .option-edit input[type="text"] {
+            flex: 1;
+        }
+
+        .option-edit button {
+            padding: 8px 12px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        .btn-primary {
+            flex: 1;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+        }
+
+        .btn-secondary {
+            padding: 15px 30px;
+            background: #e0e0e0;
+            color: #333;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .edit-btn {
+            padding: 8px 15px;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
+
+        .edit-btn:hover {
+            background: #45a049;
+        }
+
+        .verified-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            background: #4caf50;
+            color: white;
+            border-radius: 15px;
+            font-size: 0.85em;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ðŸŽ“ Ð¡Ð¸ÑÑ‚ÐµÐ¼Ð° Ð¾Ð»Ð¸Ð¼Ð¿Ð¸Ð°Ð´Ð½Ñ‹Ñ… Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²</h1>
+            <p class="subtitle">ÐžÐ±ÑƒÑ‡ÐµÐ½Ð¸Ðµ Ð¸ Ð¿Ð¾Ð´Ð³Ð¾Ñ‚Ð¾Ð²ÐºÐ° Ðº Ð¾Ð»Ð¸Ð¼Ð¿Ð¸Ð°Ð´Ð°Ð¼</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('browse')">ðŸ“š ÐŸÑ€Ð¾ÑÐ¼Ð¾Ñ‚Ñ€ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²</button>
+            <button class="tab" onclick="switchTab('test')">âœï¸ Ð¢ÐµÑÑ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ðµ</button>
+            <button class="tab" onclick="switchTab('quizzes')">ðŸŽ¯ Ð’Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹</button>
+            <button class="tab" onclick="switchTab('stats')">ðŸ“Š Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ°</button>
+        </div>
+
+        <div class="content">
+            <!-- ÐŸÑ€Ð¾ÑÐ¼Ð¾Ñ‚Ñ€ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð² -->
+            <div id="browse" class="tab-content active">
+                <h2>ÐŸÐ¾Ð¸ÑÐº Ð¸ Ð¿Ñ€Ð¾ÑÐ¼Ð¾Ñ‚Ñ€ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²</h2>
+
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Ð˜ÑÑ…Ð¾Ð´Ð½Ñ‹Ð¹ PDF</label>
+                        <select id="filter-source-pdf" onchange="applyFilters()">
+                            <option value="">Ð’ÑÐµ PDF Ñ„Ð°Ð¹Ð»Ñ‹</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>ÐŸÑ€ÐµÐ´Ð¼ÐµÑ‚</label>
+                        <select id="filter-subject">
+                            <option value="">Ð’ÑÐµ Ð¿Ñ€ÐµÐ´Ð¼ÐµÑ‚Ñ‹</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Ð£Ð½Ð¸Ð²ÐµÑ€ÑÐ¸Ñ‚ÐµÑ‚</label>
+                        <select id="filter-university">
+                            <option value="">Ð’ÑÐµ ÑƒÐ½Ð¸Ð²ÐµÑ€ÑÐ¸Ñ‚ÐµÑ‚Ñ‹</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Ð“Ð¾Ð´</label>
+                        <select id="filter-year">
+                            <option value="">Ð’ÑÐµ Ð³Ð¾Ð´Ñ‹</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Ð¢Ð¸Ð¿ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ°</label>
+                        <select id="filter-type">
+                            <option value="">Ð’ÑÐµ Ñ‚Ð¸Ð¿Ñ‹</option>
+                            <option value="choice">ÐžÐ´Ð¸Ð½Ð¾Ñ‡Ð½Ñ‹Ð¹ Ð²Ñ‹Ð±Ð¾Ñ€</option>
+                            <option value="multiple_choice">ÐœÐ½Ð¾Ð¶ÐµÑÑ‚Ð²ÐµÐ½Ð½Ñ‹Ð¹ Ð²Ñ‹Ð±Ð¾Ñ€</option>
+                            <option value="matching">Ð¡Ð¾Ð¾Ñ‚Ð²ÐµÑ‚ÑÑ‚Ð²Ð¸Ðµ</option>
+                            <option value="text">Ð¢ÐµÐºÑÑ‚Ð¾Ð²Ñ‹Ð¹ Ð¾Ñ‚Ð²ÐµÑ‚</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Ð¡Ð»Ð¾Ð¶Ð½Ð¾ÑÑ‚ÑŒ</label>
+                        <select id="filter-difficulty">
+                            <option value="">Ð›ÑŽÐ±Ð°Ñ</option>
+                            <option value="1">1 (Ð›ÐµÐ³ÐºÐ¾)</option>
+                            <option value="2">2</option>
+                            <option value="3">3 (Ð¡Ñ€ÐµÐ´Ð½Ðµ)</option>
+                            <option value="4">4</option>
+                            <option value="5">5 (Ð¡Ð»Ð¾Ð¶Ð½Ð¾)</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>ÐŸÑ€Ð¾Ð²ÐµÑ€ÐºÐ°</label>
+                        <select id="filter-verified">
+                            <option value="">Ð’ÑÐµ Ð²Ð¾Ð¿Ñ€Ð¾ÑÑ‹</option>
+                            <option value="true">âœ“ Ð¢Ð¾Ð»ÑŒÐºÐ¾ Ð¿Ñ€Ð¾Ð²ÐµÑ€ÐµÐ½Ð½Ñ‹Ðµ</option>
+                            <option value="false">âš  Ð¢Ð¾Ð»ÑŒÐºÐ¾ Ð½ÐµÐ¿Ñ€Ð¾Ð²ÐµÑ€ÐµÐ½Ð½Ñ‹Ðµ</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button onclick="applyFilters()">ðŸ” ÐŸÑ€Ð¸Ð¼ÐµÐ½Ð¸Ñ‚ÑŒ Ñ„Ð¸Ð»ÑŒÑ‚Ñ€Ñ‹</button>
+
+                <div id="questions-container" class="question-list">
+                    <!-- Ð’Ð¾Ð¿Ñ€Ð¾ÑÑ‹ Ð±ÑƒÐ´ÑƒÑ‚ Ð·Ð°Ð³Ñ€ÑƒÐ¶ÐµÐ½Ñ‹ Ð´Ð¸Ð½Ð°Ð¼Ð¸Ñ‡ÐµÑÐºÐ¸ -->
+                </div>
+            </div>
+
+            <!-- Ð¢ÐµÑÑ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ðµ -->
+            <div id="test" class="tab-content">
+                <h2>Ð ÐµÐ¶Ð¸Ð¼ Ñ‚ÐµÑÑ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ñ</h2>
+
+                <div class="test-controls">
+                    <div class="filter-group">
+                        <label>ÐŸÑ€ÐµÐ´Ð¼ÐµÑ‚</label>
+                        <select id="test-subject">
+                            <option value="">Ð’ÑÐµ Ð¿Ñ€ÐµÐ´Ð¼ÐµÑ‚Ñ‹</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>ÐšÐ¾Ð»Ð¸Ñ‡ÐµÑÑ‚Ð²Ð¾ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²</label>
+                        <input type="number" id="test-count" value="10" min="1" max="50">
+                    </div>
+                    <button onclick="startTest()">â–¶ï¸ ÐÐ°Ñ‡Ð°Ñ‚ÑŒ Ñ‚ÐµÑÑ‚</button>
+                </div>
+
+                <div id="test-container">
+                    <!-- Ð¢ÐµÑÑ‚ Ð±ÑƒÐ´ÐµÑ‚ Ð·Ð°Ð³Ñ€ÑƒÐ¶ÐµÐ½ Ð·Ð´ÐµÑÑŒ -->
+                </div>
+            </div>
+
+            <!-- Ð’Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹ -->
+            <div id="quizzes" class="tab-content">
+                <h2>Ð£Ð¿Ñ€Ð°Ð²Ð»ÐµÐ½Ð¸Ðµ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ð°Ð¼Ð¸</h2>
+
+                <!-- Ð¡Ð¿Ð¸ÑÐ¾Ðº Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½ -->
+                <div id="quizzes-list" style="margin-bottom: 30px;">
+                    <h3>ÐœÐ¾Ð¸ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹</h3>
+                    <div id="quizzes-container">
+                        <!-- Ð’Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹ Ð±ÑƒÐ´ÑƒÑ‚ Ð·Ð°Ð³Ñ€ÑƒÐ¶ÐµÐ½Ñ‹ Ð·Ð´ÐµÑÑŒ -->
+                    </div>
+                </div>
+
+                <!-- Ð¡Ð¾Ð·Ð´Ð°Ð½Ð¸Ðµ Ð½Ð¾Ð²Ð¾Ð¹ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹ -->
+                <div class="create-quiz-section">
+                    <h3>Ð¡Ð¾Ð·Ð´Ð°Ñ‚ÑŒ Ð½Ð¾Ð²ÑƒÑŽ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñƒ</h3>
+
+                    <div class="form-group">
+                        <label>ÐÐ°Ð·Ð²Ð°Ð½Ð¸Ðµ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹</label>
+                        <input type="text" id="quiz-title" placeholder="ÐÐ°Ð¿Ñ€Ð¸Ð¼ÐµÑ€: Ð¤Ð¸Ð»Ð¾ÑÐ¾Ñ„Ð¸Ñ 2024">
+                    </div>
+
+                    <div class="form-group">
+                        <label>ÐžÐ¿Ð¸ÑÐ°Ð½Ð¸Ðµ (Ð¾Ð¿Ñ†Ð¸Ð¾Ð½Ð°Ð»ÑŒÐ½Ð¾)</label>
+                        <textarea id="quiz-description" rows="3" placeholder="ÐšÑ€Ð°Ñ‚ÐºÐ¾Ðµ Ð¾Ð¿Ð¸ÑÐ°Ð½Ð¸Ðµ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñ‹"></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Ð’Ð°ÑˆÐµ Ð¸Ð¼Ñ (ÑƒÑ‡Ð¸Ñ‚ÐµÐ»ÑŒ)</label>
+                            <input type="text" id="quiz-creator" placeholder="Ð˜Ð²Ð°Ð½ Ð˜Ð²Ð°Ð½Ð¾Ð²Ð¸Ñ‡">
+                        </div>
+                        <div class="form-group">
+                            <label>ÐœÐ°ÐºÑÐ¸Ð¼ÑƒÐ¼ Ð¿Ð¾Ð¿Ñ‹Ñ‚Ð¾Ðº</label>
+                            <input type="number" id="quiz-max-attempts" value="1" min="1" max="10">
+                        </div>
+                    </div>
+
+                    <h4 style="margin-top: 20px;">Ð’Ñ‹Ð±Ð¾Ñ€ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²:</h4>
+
+                    <div class="quiz-creation-methods">
+                        <button onclick="showPdfSelector()" class="btn-secondary">ðŸ“„ Ð˜Ð· PDF Ñ„Ð°Ð¹Ð»Ð°</button>
+                        <button onclick="showManualSelector()" class="btn-secondary">âœï¸ Ð’Ñ‹Ð±Ñ€Ð°Ñ‚ÑŒ Ð²Ñ€ÑƒÑ‡Ð½ÑƒÑŽ</button>
+                    </div>
+
+                    <!-- Ð’Ñ‹Ð±Ð¾Ñ€ Ð¸Ð· PDF -->
+                    <div id="pdf-selector" style="display: none; margin-top: 20px;">
+                        <h4>Ð’Ñ‹Ð±ÐµÑ€Ð¸Ñ‚Ðµ PDF Ñ„Ð°Ð¹Ð»:</h4>
+                        <select id="pdf-select" onchange="loadQuestionsFromPdf()">
+                            <option value="">-- Ð’Ñ‹Ð±ÐµÑ€Ð¸Ñ‚Ðµ PDF --</option>
+                        </select>
+                        <div id="pdf-questions-preview" style="margin-top: 15px;">
+                            <!-- ÐŸÑ€ÐµÐ²ÑŒÑŽ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð² Ð¸Ð· PDF -->
+                        </div>
+                    </div>
+
+                    <!-- Ð ÑƒÑ‡Ð½Ð¾Ð¹ Ð²Ñ‹Ð±Ð¾Ñ€ -->
+                    <div id="manual-selector" style="display: none; margin-top: 20px;">
+                        <h4>Ð’Ñ‹Ð±Ñ€Ð°Ð½Ð½Ñ‹Ðµ Ð²Ð¾Ð¿Ñ€Ð¾ÑÑ‹:</h4>
+                        <div id="selected-questions" class="selected-questions-list">
+                            <p style="color: #999;">ÐŸÐµÑ€ÐµÐ¹Ð´Ð¸Ñ‚Ðµ Ð½Ð° Ð²ÐºÐ»Ð°Ð´ÐºÑƒ "ÐŸÑ€Ð¾ÑÐ¼Ð¾Ñ‚Ñ€ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð²", Ð½Ð°Ð¹Ð´Ð¸Ñ‚Ðµ Ð½ÑƒÐ¶Ð½Ñ‹Ðµ Ð²Ð¾Ð¿Ñ€Ð¾ÑÑ‹ Ð¸ Ð´Ð¾Ð±Ð°Ð²ÑŒÑ‚Ðµ Ð¸Ñ… Ð² Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñƒ.</p>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <button onclick="createQuiz()" class="btn-primary" style="width: auto; padding: 15px 40px;">
+                            âœ¨ Ð¡Ð¾Ð·Ð´Ð°Ñ‚ÑŒ Ð²Ð¸ÐºÑ‚Ð¾Ñ€Ð¸Ð½Ñƒ
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ° -->
+            <div id="stats" class="tab-content">
+                <h2>Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ° Ð±Ð°Ð·Ñ‹ Ð´Ð°Ð½Ð½Ñ‹Ñ…</h2>
+                <div id="stats-container">
+                    <!-- Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ° Ð±ÑƒÐ´ÐµÑ‚ Ð·Ð°Ð³Ñ€ÑƒÐ¶ÐµÐ½Ð° Ð·Ð´ÐµÑÑŒ -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ÐœÐ¾Ð´Ð°Ð»ÑŒÐ½Ð¾Ðµ Ð¾ÐºÐ½Ð¾ Ñ€ÐµÐ´Ð°ÐºÑ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ñ -->
+    <div id="edit-modal"></div>
+
+    <script src="app.js"></script>
+    <script src="edit.js"></script>
+    <script src="quiz.js"></script>
+</body>
+</html>
