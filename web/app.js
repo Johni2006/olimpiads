@@ -329,11 +329,12 @@ function displayQuestions(questions) {
 // Функция для редактирования вопроса из списка
 function showEditQuestionModal(questionId) {
     // Используем функцию из edit.js
-    if (typeof showEditModal === 'function') {
+    // Функция showEditModal загружается из edit.js после app.js
+    try {
         showEditModal(questionId);
-    } else {
-        console.error('Функция showEditModal не найдена');
-        alert('Ошибка: функция редактирования не загружена');
+    } catch (error) {
+        console.error('Ошибка вызова showEditModal:', error);
+        alert('Ошибка: не удалось открыть редактирование вопроса');
     }
 }
 
