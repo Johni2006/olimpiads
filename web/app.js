@@ -330,13 +330,25 @@ function displayQuestions(questions) {
 function showEditQuestionModal(questionId) {
     // Используем функцию из edit.js
     // Функция showEditModal загружается из edit.js после app.js
-    // Проверяем доступность через window объект
-    if (typeof window.showEditModal === 'function') {
-        window.showEditModal(questionId);
-    } else {
-        console.error('showEditModal не загружена. Возможно edit.js не загрузился.');
-        alert('Ошибка: функция редактирования не загружена. Попробуйте обновить страницу (Ctrl+F5)');
-    }
+    // К моменту клика пользователя скрипты уже загружены
+    setTimeout(() => {
+        if (typeof window.showEditModal === 'function') {
+            window.showEditModal(questionId);
+        } else {
+            console.error('showEditModal не загружена');
+            // Пробуем загрузить скрипт заново
+            const script = document.createElement('script');
+            script.src = 'edit.js?v=' + Date.now();
+            script.onload = () => {
+                if (typeof window.showEditModal === 'function') {
+                    window.showEditModal(questionId);
+                } else {
+                    alert('Ошибка загрузки функции редактирования. Перезагрузите страницу (Ctrl+F5)');
+                }
+            };
+            document.body.appendChild(script);
+        }
+    }, 10);
 }
 
 // Функция для удаления вопроса из списка
