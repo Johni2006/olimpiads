@@ -22,6 +22,13 @@ window.showEditModal = function showEditModal(questionId) {
                         loadOptionImages(data.question.options);
                     }, 100);
                 }
+
+                // Загружаем изображения для пар соответствия
+                if (data.question.matching_pairs && data.question.matching_pairs.length > 0) {
+                    setTimeout(() => {
+                        loadMatchingImages(data.question.matching_pairs);
+                    }, 100);
+                }
             }
         })
         .catch(error => {
@@ -141,6 +148,46 @@ window.renderEditForm = function renderEditForm(question) {
                         <button type="button" onclick="addOption()" class="btn-secondary">+ Добавить вариант</button>
                     </div>
 
+                    <!-- Пары соответствия (только для matching) -->
+                    <div id="matching-container" style="display: ${question.type === 'matching' ? 'block' : 'none'}">
+                        <label>Пары соответствия:</label>
+                        <div id="edit-matching">
+                            ${(question.matching_pairs || []).map((pair, i) => `
+                                <div class="matching-pair-edit" data-pair-id="${pair.id || ''}">
+                                    <div class="matching-pair-inputs">
+                                        <div class="matching-side">
+                                            <input type="text"
+                                                   id="pair-left-${i}"
+                                                   value="${pair.left_text}"
+                                                   placeholder="Левая часть ${i + 1}">
+                                            ${pair.id ? `
+                                                <button type="button" onclick="uploadMatchingImage(${pair.id}, ${i}, 'left')" class="btn-image" title="Загрузить изображение для левой части">🖼️ L</button>
+                                            ` : `
+                                                <span class="save-first-hint" title="Сначала сохраните вопрос">💾</span>
+                                            `}
+                                            <div id="pair-left-images-${i}" class="matching-images"></div>
+                                        </div>
+                                        <span class="matching-arrow">↔</span>
+                                        <div class="matching-side">
+                                            <input type="text"
+                                                   id="pair-right-${i}"
+                                                   value="${pair.right_text}"
+                                                   placeholder="Правая часть ${i + 1}">
+                                            ${pair.id ? `
+                                                <button type="button" onclick="uploadMatchingImage(${pair.id}, ${i}, 'right')" class="btn-image" title="Загрузить изображение для правой части">🖼️ R</button>
+                                            ` : `
+                                                <span class="save-first-hint" title="Сначала сохраните вопрос">💾</span>
+                                            `}
+                                            <div id="pair-right-images-${i}" class="matching-images"></div>
+                                        </div>
+                                    </div>
+                                    <button type="button" onclick="removeMatchingPair(${i})" class="btn-remove-pair">✕</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button type="button" onclick="addMatchingPair()" class="btn-secondary">+ Добавить пару</button>
+                    </div>
+
                     <!-- Рекомендации для эссе -->
                     <div id="essay-container" style="display: ${question.type === 'essay' ? 'block' : 'none'}">
                         <div class="form-group">
@@ -191,6 +238,29 @@ window.removeOption = function removeOption(index) {
     option.remove();
 }
 
+// Добавить пару соответствия
+window.addMatchingPair = function addMatchingPair() {
+    const container = document.getElementById('edit-matching');
+    const count = container.children.length;
+
+    const pairDiv = document.createElement('div');
+    pairDiv.className = 'matching-pair-edit';
+    pairDiv.innerHTML = `
+        <input type="text" id="pair-left-${count}" placeholder="Левая часть ${count + 1}">
+        <span class="matching-arrow">↔</span>
+        <input type="text" id="pair-right-${count}" placeholder="Правая часть ${count + 1}">
+        <button type="button" onclick="removeMatchingPair(${count})">✕</button>
+    `;
+
+    container.appendChild(pairDiv);
+}
+
+// Удалить пару соответствия
+window.removeMatchingPair = function removeMatchingPair(index) {
+    const pair = document.getElementById(`pair-left-${index}`).parentElement;
+    pair.remove();
+}
+
 // Сохранить изменения
 window.saveQuestion = async function saveQuestion() {
     if (!currentEditingQuestion) return;
@@ -229,6 +299,24 @@ window.saveQuestion = async function saveQuestion() {
         });
     }
 
+    // Собираем пары соответствия
+    data.matching_pairs = [];
+    const matchingContainer = document.getElementById('edit-matching');
+    if (matchingContainer && data.type === 'matching') {
+        const pairDivs = matchingContainer.querySelectorAll('.matching-pair-edit');
+        pairDivs.forEach((div, i) => {
+            const leftInput = div.querySelector(`#pair-left-${i}`);
+            const rightInput = div.querySelector(`#pair-right-${i}`);
+
+            if (leftInput && rightInput && leftInput.value.trim() && rightInput.value.trim()) {
+                data.matching_pairs.push({
+                    left_text: leftInput.value.trim(),
+                    right_text: rightInput.value.trim()
+                });
+            }
+        });
+    }
+
     // Для эссе сохраняем рекомендации как первый вариант ответа
     if (data.type === 'essay') {
         const guidelines = document.getElementById('essay-guidelines');
@@ -243,6 +331,12 @@ window.saveQuestion = async function saveQuestion() {
     // ВАЛИДАЦИЯ: проверяем наличие вариантов ответа для типов choice/multiple_choice
     if ((data.type === 'choice' || data.type === 'multiple_choice') && data.options.length === 0) {
         alert('⚠️ Вопрос типа "Одиночный выбор" или "Множественный выбор" должен иметь хотя бы один вариант ответа!');
+        return;
+    }
+
+    // ВАЛИДАЦИЯ: проверяем наличие пар для типа matching
+    if (data.type === 'matching' && data.matching_pairs.length === 0) {
+        alert('⚠️ Вопрос типа "Соответствие" должен иметь хотя бы одну пару соответствия!');
         return;
     }
 
@@ -313,17 +407,25 @@ window.deleteQuestion = async function deleteQuestion(questionId) {
 window.updateQuestionTypeFields = function updateQuestionTypeFields() {
     const type = document.getElementById('edit-type').value;
     const optionsContainer = document.getElementById('options-container');
+    const matchingContainer = document.getElementById('matching-container');
     const essayContainer = document.getElementById('essay-container');
 
     // Показываем варианты ответов только для choice и multiple_choice
     if (type === 'choice' || type === 'multiple_choice') {
         optionsContainer.style.display = 'block';
+        matchingContainer.style.display = 'none';
+        essayContainer.style.display = 'none';
+    } else if (type === 'matching') {
+        optionsContainer.style.display = 'none';
+        matchingContainer.style.display = 'block';
         essayContainer.style.display = 'none';
     } else if (type === 'essay') {
         optionsContainer.style.display = 'none';
+        matchingContainer.style.display = 'none';
         essayContainer.style.display = 'block';
     } else {
         optionsContainer.style.display = 'none';
+        matchingContainer.style.display = 'none';
         essayContainer.style.display = 'none';
     }
 }
@@ -445,6 +547,128 @@ window.loadOptionImages = async function loadOptionImages(options) {
             }
         } catch (error) {
             console.error('Ошибка загрузки изображений варианта:', error);
+        }
+    }
+}
+
+// ============== ФУНКЦИИ ДЛЯ РАБОТЫ С ИЗОБРАЖЕНИЯМИ ПАР СООТВЕТСТВИЯ ==============
+
+// Загрузить изображение для пары соответствия
+window.uploadMatchingImage = function uploadMatchingImage(pairId, pairIndex, side) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/jpg,image/gif,image/webp,image/svg+xml';
+
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Проверяем размер файла (макс 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('❌ Файл слишком большой. Максимальный размер: 5 МБ');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('matching_pair_id', pairId);
+        formData.append('matching_side', side);
+        formData.append('question_id', currentEditingQuestion.id);
+        formData.append('image_type', 'matching');
+
+        try {
+            const response = await fetch(`${API_URL}/images/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                displayMatchingImage(pairIndex, side, result);
+                alert('✅ Изображение успешно загружено!');
+            } else {
+                alert('❌ Ошибка: ' + result.error);
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки изображения:', error);
+            alert('❌ Ошибка загрузки изображения');
+        }
+    };
+
+    input.click();
+}
+
+// Отобразить изображение пары соответствия
+window.displayMatchingImage = function displayMatchingImage(pairIndex, side, imageData) {
+    const container = document.getElementById(`pair-${side}-images-${pairIndex}`);
+    if (!container) return;
+
+    const imageDiv = document.createElement('div');
+    imageDiv.className = 'matching-image-preview';
+    imageDiv.setAttribute('data-image-id', imageData.image_id);
+
+    imageDiv.innerHTML = `
+        <img src="${API_URL}/images/${imageData.file_path}"
+             alt="${side} image"
+             style="max-width: 150px; max-height: 100px; border-radius: 4px;">
+        <button type="button"
+                onclick="deleteMatchingImage(${imageData.image_id}, ${pairIndex}, '${side}')"
+                class="btn-delete-image"
+                title="Удалить изображение">✕</button>
+    `;
+
+    container.appendChild(imageDiv);
+}
+
+// Удалить изображение пары соответствия
+window.deleteMatchingImage = async function deleteMatchingImage(imageId, pairIndex, side) {
+    if (!confirm('Удалить это изображение?')) return;
+
+    try {
+        const response = await fetch(`${API_URL}/images/${imageId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Удаляем из UI
+            const container = document.getElementById(`pair-${side}-images-${pairIndex}`);
+            const imageDiv = container.querySelector(`[data-image-id="${imageId}"]`);
+            if (imageDiv) {
+                imageDiv.remove();
+            }
+            alert('✅ Изображение удалено');
+        } else {
+            alert('❌ Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Ошибка удаления изображения:', error);
+        alert('❌ Ошибка удаления изображения');
+    }
+}
+
+// Загрузить существующие изображения для пар соответствия
+window.loadMatchingImages = async function loadMatchingImages(pairs) {
+    for (let i = 0; i < pairs.length; i++) {
+        const pair = pairs[i];
+        if (!pair.id) continue;
+
+        try {
+            const response = await fetch(`${API_URL}/matching_pairs/${pair.id}/images`);
+            const result = await response.json();
+
+            if (result.success && result.images && result.images.length > 0) {
+                result.images.forEach(image => {
+                    displayMatchingImage(i, image.matching_side, {
+                        image_id: image.id,
+                        file_path: image.file_path
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки изображений пары:', error);
         }
     }
 }

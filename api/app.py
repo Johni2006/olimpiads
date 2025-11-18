@@ -2249,12 +2249,16 @@ def upload_image():
         # Получаем параметры
         question_id = request.form.get('question_id', type=int)
         option_id = request.form.get('option_id', type=int)
+        matching_pair_id = request.form.get('matching_pair_id', type=int)
+        matching_side = request.form.get('matching_side', '')
         image_type = request.form.get('image_type', 'other')
         description = request.form.get('description', '')
 
         # Определяем директорию для сохранения
         if option_id:
             upload_dir = Path(__file__).parent.parent / 'uploads' / 'option_images'
+        elif matching_pair_id:
+            upload_dir = Path(__file__).parent.parent / 'uploads' / 'matching_images'
         else:
             upload_dir = Path(__file__).parent.parent / 'uploads' / 'question_images'
 
@@ -2280,6 +2284,8 @@ def upload_image():
         # Относительный путь для БД
         if option_id:
             relative_path = f"uploads/option_images/{unique_filename}"
+        elif matching_pair_id:
+            relative_path = f"uploads/matching_images/{unique_filename}"
         else:
             relative_path = f"uploads/question_images/{unique_filename}"
 
@@ -2288,10 +2294,11 @@ def upload_image():
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO images (
-                question_id, option_id, file_path, image_type,
-                width, height, description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (question_id, option_id, relative_path, image_type, width, height, description))
+                question_id, option_id, matching_pair_id, matching_side,
+                file_path, image_type, width, height, description
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (question_id, option_id, matching_pair_id, matching_side,
+              relative_path, image_type, width, height, description))
 
         image_id = cursor.lastrowid
         conn.commit()
@@ -2447,6 +2454,45 @@ def get_option_images(option_id):
                 "height": row[4],
                 "description": row[5],
                 "position": row[6]
+            })
+
+        return jsonify({
+            "success": True,
+            "images": images
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/matching_pairs/<int:pair_id>/images', methods=['GET'])
+def get_matching_pair_images(pair_id):
+    """Получить все изображения пары соответствия"""
+    try:
+        conn = db.conn
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, file_path, matching_side, image_type, width, height, description, position
+            FROM images
+            WHERE matching_pair_id = ?
+            ORDER BY matching_side, position, id
+        """, (pair_id,))
+
+        images = []
+        for row in cursor.fetchall():
+            images.append({
+                "id": row[0],
+                "file_path": row[1],
+                "matching_side": row[2],
+                "image_type": row[3],
+                "width": row[4],
+                "height": row[5],
+                "description": row[6],
+                "position": row[7]
             })
 
         return jsonify({

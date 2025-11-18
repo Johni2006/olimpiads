@@ -275,7 +275,7 @@ class DatabaseManager(QuizManager):
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT left_text, right_text, position
+                SELECT id, left_text, right_text, position
                 FROM matching_pairs
                 WHERE question_id = ?
                 ORDER BY position
@@ -659,6 +659,18 @@ class DatabaseManager(QuizManager):
                         INSERT INTO options (question_id, text, is_correct, position)
                         VALUES (?, ?, ?, ?)
                     """, (question_id, option['text'], option.get('is_correct', False), i))
+
+            # Обновляем пары соответствия
+            if 'matching_pairs' in data:
+                # Удаляем старые пары
+                cursor.execute("DELETE FROM matching_pairs WHERE question_id = ?", (question_id,))
+
+                # Добавляем новые
+                for i, pair in enumerate(data['matching_pairs']):
+                    cursor.execute("""
+                        INSERT INTO matching_pairs (question_id, left_text, right_text, position)
+                        VALUES (?, ?, ?, ?)
+                    """, (question_id, pair['left_text'], pair['right_text'], i))
 
             # Обновляем теги
             if 'tags' in data:
