@@ -11,8 +11,10 @@ DROP TRIGGER IF EXISTS prevent_delete_last_option;
 CREATE TRIGGER prevent_delete_last_option
 BEFORE DELETE ON options
 FOR EACH ROW
+WHEN EXISTS (SELECT 1 FROM questions WHERE id = OLD.question_id)
 BEGIN
     -- Проверяем, является ли этот вариант последним для вопроса типа choice/multiple_choice
+    -- Триггер срабатывает только если вопрос еще существует
     SELECT CASE
         WHEN (
             SELECT type FROM questions WHERE id = OLD.question_id
@@ -35,8 +37,10 @@ DROP TRIGGER IF EXISTS prevent_delete_last_matching_pair;
 CREATE TRIGGER prevent_delete_last_matching_pair
 BEFORE DELETE ON matching_pairs
 FOR EACH ROW
+WHEN EXISTS (SELECT 1 FROM questions WHERE id = OLD.question_id)
 BEGIN
     -- Проверяем, является ли эта пара последней для вопроса типа matching
+    -- Триггер срабатывает только если вопрос еще существует
     SELECT CASE
         WHEN (
             SELECT type FROM questions WHERE id = OLD.question_id

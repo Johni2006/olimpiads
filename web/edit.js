@@ -367,7 +367,7 @@ window.saveQuestion = async function saveQuestion() {
         }
     } catch (error) {
         console.error('Ошибка сохранения:', error);
-        alert('❌ Ошибка сохранения');
+        alert('❌ Ошибка сохранения: ' + error.message);
     }
 }
 

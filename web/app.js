@@ -700,11 +700,17 @@ function displayPDFList(pdfs) {
                             <button onclick="editPDF(${pdf.id})" class="edit-btn" style="background: #4caf50;">
                                 ✏️ Редактировать
                             </button>
-                            <button onclick="reparsePDF(${pdf.id})" class="edit-btn" style="background: #2196f3;">
+                            <a href="${API_URL}/pdf/${encodeURIComponent(pdf.file_path)}" target="_blank" class="edit-btn" style="background: #2196f3; text-decoration: none; text-align: center; display: inline-block;">
+                                📄 PDF
+                            </a>
+                            <button onclick="reparsePDF(${pdf.id})" class="edit-btn" style="background: #9c27b0;">
                                 🔄 Перепарсить
                             </button>
                             <button onclick="viewPDFQuestions(${pdf.id})" class="edit-btn" style="background: #ff9800;">
                                 📝 Вопросы
+                            </button>
+                            <button onclick="deletePDFFile(${pdf.id})" class="btn-danger" style="padding: 8px 15px; font-size: 0.9em;">
+                                🗑️ Удалить файл
                             </button>
                         </div>
                     </div>

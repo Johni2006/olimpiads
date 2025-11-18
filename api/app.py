@@ -13,6 +13,7 @@ from database.db_manager import DatabaseManager
 import json
 import os
 import subprocess
+import sqlite3
 from datetime import datetime
 
 app = Flask(__name__)
@@ -239,10 +240,18 @@ def update_question(question_id):
             }), 404
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        error_msg = str(e)
+        # Проверяем, является ли это ошибкой валидации из триггера
+        if "Нельзя удалить последний вариант" in error_msg or "варианта ответа" in error_msg:
+            return jsonify({
+                "success": False,
+                "error": error_msg
+            }), 400
+        else:
+            return jsonify({
+                "success": False,
+                "error": error_msg
+            }), 500
 
 
 @app.route('/api/questions/<int:question_id>', methods=['DELETE'])
@@ -269,17 +278,14 @@ def delete_question(question_id):
             }), 404
 
         # Удаляем связанные данные
-        # 1. Удаляем теги
-        cursor.execute("DELETE FROM tags WHERE question_id = ?", (question_id,))
-
-        # 2. Удаляем варианты ответов
-        cursor.execute("DELETE FROM options WHERE question_id = ?", (question_id,))
-
-        # 3. Удаляем пары для matching
-        cursor.execute("DELETE FROM matching_pairs WHERE question_id = ?", (question_id,))
-
-        # 4. Удаляем сам вопрос
+        # ВАЖНО: Удаляем в таком порядке, чтобы избежать срабатывания триггеров
+        # 1. Сначала удаляем сам вопрос (это отключит некоторые триггеры)
         cursor.execute("DELETE FROM questions WHERE id = ?", (question_id,))
+
+        # 2. Затем очищаем orphaned записи, если они остались
+        cursor.execute("DELETE FROM tags WHERE question_id = ?", (question_id,))
+        cursor.execute("DELETE FROM options WHERE question_id = ?", (question_id,))
+        cursor.execute("DELETE FROM matching_pairs WHERE question_id = ?", (question_id,))
 
         conn.commit()
         conn.close()
@@ -1089,31 +1095,30 @@ def pdf_details(pdf_id):
             questions_count = cursor.fetchone()[0]
 
             # Удаляем все связанные данные
-            # 1. Удаляем теги вопросов
+            # ВАЖНО: Сначала удаляем вопросы, чтобы триггеры не блокировали удаление options
+            # 1. Удаляем вопросы
+            cursor.execute("DELETE FROM questions WHERE source_pdf = ?", (file_path,))
+
+            # 2. Затем очищаем orphaned записи, если они остались
             cursor.execute("""
                 DELETE FROM tags WHERE question_id IN (
                     SELECT id FROM questions WHERE source_pdf = ?
                 )
             """, (file_path,))
 
-            # 2. Удаляем варианты ответов
             cursor.execute("""
                 DELETE FROM options WHERE question_id IN (
                     SELECT id FROM questions WHERE source_pdf = ?
                 )
             """, (file_path,))
 
-            # 3. Удаляем пары для matching
             cursor.execute("""
                 DELETE FROM matching_pairs WHERE question_id IN (
                     SELECT id FROM questions WHERE source_pdf = ?
                 )
             """, (file_path,))
 
-            # 4. Удаляем вопросы
-            cursor.execute("DELETE FROM questions WHERE source_pdf = ?", (file_path,))
-
-            # 5. Удаляем запись о PDF
+            # 3. Удаляем запись о PDF
             cursor.execute("DELETE FROM pdf_files WHERE id = ?", (pdf_id,))
 
             conn.commit()
