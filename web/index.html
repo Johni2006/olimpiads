@@ -558,6 +558,85 @@
         .status-indicator.red {
             background: #f44336;
         }
+
+        /* Стили для изображений в вариантах ответа */
+        .option-images {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .option-image-preview {
+            position: relative;
+            display: inline-block;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 5px;
+            background: #f9f9f9;
+        }
+
+        .option-image-preview img {
+            display: block;
+            max-width: 150px;
+            max-height: 100px;
+            border-radius: 4px;
+        }
+
+        .btn-delete-image {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #f44336;
+            color: white;
+            border: 2px solid white;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .btn-delete-image:hover {
+            background: #d32f2f;
+            transform: scale(1.1);
+        }
+
+        .btn-image {
+            padding: 5px 10px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .btn-image:hover {
+            background: #1976D2;
+            transform: scale(1.05);
+        }
+
+        .option-edit {
+            position: relative;
+        }
+
+        .save-first-hint {
+            padding: 5px 10px;
+            background: #ffc107;
+            color: #333;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: help;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -957,7 +1036,7 @@
     <div id="edit-modal"></div>
 
     <script src="app.js?v=1731911000"></script>
-    <script src="edit.js?v=1731911000"></script>
+    <script src="edit.js?v=1763449489"></script>
     <script src="quiz.js?v=1731911000"></script>
 </body>
 </html>

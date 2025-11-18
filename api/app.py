@@ -2206,6 +2206,261 @@ def delete_subject(subject):
         }), 500
 
 
+@app.route('/api/images/upload', methods=['POST'])
+def upload_image():
+    """
+    Загрузить изображение
+
+    Form data:
+        - file: файл изображения
+        - question_id: ID вопроса (опционально)
+        - option_id: ID варианта ответа (опционально)
+        - image_type: тип изображения (опционально)
+        - description: описание (опционально)
+    """
+    try:
+        from werkzeug.utils import secure_filename
+        from PIL import Image
+
+        if 'file' not in request.files:
+            return jsonify({
+                "success": False,
+                "error": "Файл не предоставлен"
+            }), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({
+                "success": False,
+                "error": "Файл не выбран"
+            }), 400
+
+        # Проверяем тип файла
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+        filename = secure_filename(file.filename)
+        file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+
+        if file_ext not in allowed_extensions:
+            return jsonify({
+                "success": False,
+                "error": f"Недопустимый тип файла. Разрешены: {', '.join(allowed_extensions)}"
+            }), 400
+
+        # Получаем параметры
+        question_id = request.form.get('question_id', type=int)
+        option_id = request.form.get('option_id', type=int)
+        image_type = request.form.get('image_type', 'other')
+        description = request.form.get('description', '')
+
+        # Определяем директорию для сохранения
+        if option_id:
+            upload_dir = Path(__file__).parent.parent / 'uploads' / 'option_images'
+        else:
+            upload_dir = Path(__file__).parent.parent / 'uploads' / 'question_images'
+
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # Генерируем уникальное имя файла
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        unique_filename = f"{timestamp}_{filename}"
+        file_path = upload_dir / unique_filename
+
+        # Сохраняем файл
+        file.save(str(file_path))
+
+        # Получаем размеры изображения (если это не SVG)
+        width, height = None, None
+        if file_ext != 'svg':
+            try:
+                with Image.open(file_path) as img:
+                    width, height = img.size
+            except Exception:
+                pass
+
+        # Относительный путь для БД
+        if option_id:
+            relative_path = f"uploads/option_images/{unique_filename}"
+        else:
+            relative_path = f"uploads/question_images/{unique_filename}"
+
+        # Сохраняем в БД
+        conn = db.conn
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO images (
+                question_id, option_id, file_path, image_type,
+                width, height, description
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (question_id, option_id, relative_path, image_type, width, height, description))
+
+        image_id = cursor.lastrowid
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "image_id": image_id,
+            "file_path": relative_path,
+            "width": width,
+            "height": height,
+            "message": "Изображение успешно загружено"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/images/<path:filename>', methods=['GET'])
+def get_image(filename):
+    """Получить изображение по пути"""
+    try:
+        # Базовая директория для изображений
+        base_dir = Path(__file__).parent.parent
+        file_path = base_dir / filename
+
+        # Проверяем, что файл существует и находится в разрешенной директории
+        if not file_path.exists():
+            return jsonify({
+                "success": False,
+                "error": "Файл не найден"
+            }), 404
+
+        # Проверяем, что путь начинается с uploads/
+        try:
+            file_path.relative_to(base_dir / 'uploads')
+        except ValueError:
+            return jsonify({
+                "success": False,
+                "error": "Доступ запрещен"
+            }), 403
+
+        return send_file(str(file_path))
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/images/<int:image_id>', methods=['DELETE'])
+def delete_image(image_id):
+    """Удалить изображение"""
+    try:
+        conn = db.conn
+        cursor = conn.cursor()
+
+        # Получаем информацию об изображении
+        cursor.execute("SELECT file_path FROM images WHERE id = ?", (image_id,))
+        result = cursor.fetchone()
+
+        if not result:
+            return jsonify({
+                "success": False,
+                "error": "Изображение не найдено"
+            }), 404
+
+        file_path = result[0]
+
+        # Удаляем из БД
+        cursor.execute("DELETE FROM images WHERE id = ?", (image_id,))
+        conn.commit()
+
+        # Удаляем файл
+        full_path = Path(__file__).parent.parent / file_path
+        if full_path.exists():
+            os.remove(full_path)
+
+        return jsonify({
+            "success": True,
+            "message": "Изображение удалено"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/questions/<int:question_id>/images', methods=['GET'])
+def get_question_images(question_id):
+    """Получить все изображения вопроса"""
+    try:
+        conn = db.conn
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, file_path, image_type, width, height, description, position
+            FROM images
+            WHERE question_id = ? AND option_id IS NULL
+            ORDER BY position, id
+        """, (question_id,))
+
+        images = []
+        for row in cursor.fetchall():
+            images.append({
+                "id": row[0],
+                "file_path": row[1],
+                "image_type": row[2],
+                "width": row[3],
+                "height": row[4],
+                "description": row[5],
+                "position": row[6]
+            })
+
+        return jsonify({
+            "success": True,
+            "images": images
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/options/<int:option_id>/images', methods=['GET'])
+def get_option_images(option_id):
+    """Получить все изображения варианта ответа"""
+    try:
+        conn = db.conn
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, file_path, image_type, width, height, description, position
+            FROM images
+            WHERE option_id = ?
+            ORDER BY position, id
+        """, (option_id,))
+
+        images = []
+        for row in cursor.fetchall():
+            images.append({
+                "id": row[0],
+                "file_path": row[1],
+                "image_type": row[2],
+                "width": row[3],
+                "height": row[4],
+                "description": row[5],
+                "position": row[6]
+            })
+
+        return jsonify({
+            "success": True,
+            "images": images
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 if __name__ == '__main__':
     print("🚀 Запуск API сервера...")
     print("📍 API доступен по адресу: http://localhost:5001")
@@ -2256,6 +2511,12 @@ if __name__ == '__main__':
     print("   POST /api/quizzes/session/<id>/complete - Завершить")
     print("   GET  /api/quizzes/<id>/attempts - Попытки викторины")
     print("   GET  /api/quizzes/session/<id> - Детали попытки")
+    print("\n   === ИЗОБРАЖЕНИЯ ===")
+    print("   POST /api/images/upload       - Загрузить изображение")
+    print("   GET  /api/images/<path>       - Получить изображение")
+    print("   DEL  /api/images/<id>         - Удалить изображение")
+    print("   GET  /api/questions/<id>/images - Изображения вопроса")
+    print("   GET  /api/options/<id>/images - Изображения варианта ответа")
     print()
 
     app.run(debug=True, host='0.0.0.0', port=5001)

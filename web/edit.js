@@ -15,6 +15,13 @@ window.showEditModal = function showEditModal(questionId) {
                 currentEditingQuestion = data.question;
                 renderEditForm(data.question);
                 document.getElementById('edit-modal').style.display = 'flex';
+
+                // Загружаем изображения для вариантов ответа
+                if (data.question.options && data.question.options.length > 0) {
+                    setTimeout(() => {
+                        loadOptionImages(data.question.options);
+                    }, 100);
+                }
             }
         })
         .catch(error => {
@@ -113,7 +120,7 @@ window.renderEditForm = function renderEditForm(question) {
                         <label>Варианты ответов:</label>
                         <div id="edit-options">
                             ${(question.options || []).map((opt, i) => `
-                                <div class="option-edit">
+                                <div class="option-edit" data-option-id="${opt.id || ''}">
                                     <input type="checkbox"
                                            id="opt-correct-${i}"
                                            ${opt.is_correct ? 'checked' : ''}>
@@ -121,7 +128,13 @@ window.renderEditForm = function renderEditForm(question) {
                                            id="opt-text-${i}"
                                            value="${opt.text}"
                                            placeholder="Вариант ${i + 1}">
+                                    ${opt.id ? `
+                                        <button type="button" onclick="uploadOptionImage(${opt.id}, ${i})" class="btn-image" title="Загрузить изображение">🖼️</button>
+                                    ` : `
+                                        <span class="save-first-hint" title="Сначала сохраните вопрос, чтобы добавить изображение">💾</span>
+                                    `}
                                     <button type="button" onclick="removeOption(${i})">✕</button>
+                                    <div id="opt-images-${i}" class="option-images"></div>
                                 </div>
                             `).join('')}
                         </div>
@@ -306,5 +319,126 @@ window.updateQuestionTypeFields = function updateQuestionTypeFields() {
     } else {
         optionsContainer.style.display = 'none';
         essayContainer.style.display = 'none';
+    }
+}
+
+// Загрузить изображение для варианта ответа
+window.uploadOptionImage = function uploadOptionImage(optionId, optionIndex) {
+    // Создаем input для выбора файла
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/jpg,image/gif,image/webp,image/svg+xml';
+
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Проверяем размер файла (макс 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('❌ Файл слишком большой. Максимальный размер: 5 МБ');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('option_id', optionId);
+        formData.append('question_id', currentEditingQuestion.id);
+        formData.append('image_type', 'option');
+
+        try {
+            const response = await fetch(`${API_URL}/images/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Добавляем изображение в UI
+                displayOptionImage(optionIndex, result);
+                alert('✅ Изображение успешно загружено!');
+            } else {
+                alert('❌ Ошибка: ' + result.error);
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки изображения:', error);
+            alert('❌ Ошибка загрузки изображения');
+        }
+    };
+
+    input.click();
+}
+
+// Отобразить изображение варианта ответа
+window.displayOptionImage = function displayOptionImage(optionIndex, imageData) {
+    const container = document.getElementById(`opt-images-${optionIndex}`);
+    if (!container) return;
+
+    const imageDiv = document.createElement('div');
+    imageDiv.className = 'option-image-preview';
+    imageDiv.setAttribute('data-image-id', imageData.image_id);
+
+    imageDiv.innerHTML = `
+        <img src="${API_URL}/images/${imageData.file_path}"
+             alt="Option image"
+             style="max-width: 150px; max-height: 100px; border-radius: 4px;">
+        <button type="button"
+                onclick="deleteOptionImage(${imageData.image_id}, ${optionIndex})"
+                class="btn-delete-image"
+                title="Удалить изображение">✕</button>
+    `;
+
+    container.appendChild(imageDiv);
+}
+
+// Удалить изображение варианта ответа
+window.deleteOptionImage = async function deleteOptionImage(imageId, optionIndex) {
+    if (!confirm('Удалить это изображение?')) return;
+
+    try {
+        const response = await fetch(`${API_URL}/images/${imageId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Удаляем из UI
+            const container = document.getElementById(`opt-images-${optionIndex}`);
+            const imageDiv = container.querySelector(`[data-image-id="${imageId}"]`);
+            if (imageDiv) {
+                imageDiv.remove();
+            }
+            alert('✅ Изображение удалено');
+        } else {
+            alert('❌ Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Ошибка удаления изображения:', error);
+        alert('❌ Ошибка удаления изображения');
+    }
+}
+
+// Загрузить существующие изображения для вариантов ответа
+window.loadOptionImages = async function loadOptionImages(options) {
+    for (let i = 0; i < options.length; i++) {
+        const option = options[i];
+        if (!option.id) continue;
+
+        try {
+            const response = await fetch(`${API_URL}/options/${option.id}/images`);
+            const result = await response.json();
+
+            if (result.success && result.images && result.images.length > 0) {
+                result.images.forEach(image => {
+                    displayOptionImage(i, {
+                        image_id: image.id,
+                        file_path: image.file_path
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки изображений варианта:', error);
+        }
     }
 }

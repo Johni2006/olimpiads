@@ -195,6 +195,23 @@
         .btn-secondary:hover {
             background: #d0d0d0;
         }
+
+        /* Стили для изображений в вариантах ответа */
+        .option-image {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .option-image img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .option.selected .option-image img {
+            border-color: #667eea;
+        }
     </style>
 </head>
 <body>
@@ -214,6 +231,7 @@
         let userAnswers = [];
         let startTime = null;
         let questionStartTime = null;
+        let optionImages = {}; // Хранилище изображений для вариантов ответов
 
         // Получить код викторины из URL
         function getQuizCode() {
@@ -319,13 +337,43 @@
             }
         }
 
+        // Загрузить изображения для варианта ответа
+        async function loadOptionImage(optionId) {
+            if (optionImages[optionId]) {
+                return optionImages[optionId];
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/options/${optionId}/images`);
+                const data = await response.json();
+
+                if (data.success && data.images && data.images.length > 0) {
+                    optionImages[optionId] = data.images;
+                    return data.images;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки изображений варианта:', error);
+            }
+
+            return null;
+        }
+
         // Показать вопрос
-        function showQuestion() {
+        async function showQuestion() {
             const question = quiz.questions[currentQuestionIndex];
             const progress = ((currentQuestionIndex + 1) / quiz.questions.length * 100).toFixed(0);
             const container = document.getElementById('app-container');
 
             questionStartTime = Date.now();
+
+            // Загружаем изображения для всех вариантов ответа
+            const optionsWithImages = [];
+            if (question.options) {
+                for (const opt of question.options) {
+                    const images = await loadOptionImage(opt.id);
+                    optionsWithImages.push({ ...opt, images });
+                }
+            }
 
             container.innerHTML = `
                 <div class="progress-bar">
@@ -341,10 +389,17 @@
 
                 ${question.options && question.options.length > 0 ? `
                     <div class="options">
-                        ${question.options.map((opt, i) => `
+                        ${optionsWithImages.map((opt, i) => `
                             <div class="option ${userAnswers[currentQuestionIndex] === opt.text ? 'selected' : ''}"
                                  onclick="selectAnswer('${opt.text.replace(/'/g, "\\'")}')">
-                                ${String.fromCharCode(65 + i)}. ${opt.text}
+                                <div>${String.fromCharCode(65 + i)}. ${opt.text}</div>
+                                ${opt.images && opt.images.length > 0 ? `
+                                    <div class="option-image">
+                                        <img src="${API_URL}/images/${opt.images[0].file_path}"
+                                             alt="Option image"
+                                             onerror="this.style.display='none'">
+                                    </div>
+                                ` : ''}
                             </div>
                         `).join('')}
                     </div>

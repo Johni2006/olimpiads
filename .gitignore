@@ -45,6 +45,9 @@ olympiads/downloads/
 olympiads/manual/
 question_images/
 
+# Uploaded images
+uploads/
+
 # IDE
 .vscode/
 .idea/
