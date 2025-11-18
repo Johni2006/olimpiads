@@ -1,7 +1,7 @@
 // Функции для редактирования вопросов
 
-// Конфигурация API (должна совпадать с app.js)
-const API_URL = 'http://localhost:5001/api';
+// Используем API_URL из app.js (уже объявлена там)
+// const API_URL = 'http://localhost:5001/api'; - закомментировано, чтобы избежать конфликта
 
 let currentEditingQuestion = null;
 
