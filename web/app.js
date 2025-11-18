@@ -330,11 +330,12 @@ function displayQuestions(questions) {
 function showEditQuestionModal(questionId) {
     // Используем функцию из edit.js
     // Функция showEditModal загружается из edit.js после app.js
-    try {
-        showEditModal(questionId);
-    } catch (error) {
-        console.error('Ошибка вызова showEditModal:', error);
-        alert('Ошибка: не удалось открыть редактирование вопроса');
+    // Проверяем доступность через window объект
+    if (typeof window.showEditModal === 'function') {
+        window.showEditModal(questionId);
+    } else {
+        console.error('showEditModal не загружена. Возможно edit.js не загрузился.');
+        alert('Ошибка: функция редактирования не загружена. Попробуйте обновить страницу (Ctrl+F5)');
     }
 }
 
@@ -939,10 +940,14 @@ async function deletePDFFile(pdfId) {
     }
 }
 
+// Функция closeEditModal определена в edit.js и переопределит эту
+// Оставляем заглушку на случай, если edit.js не загрузится
 function closeEditModal() {
     const modal = document.getElementById('edit-modal');
-    modal.style.display = 'none';
-    modal.innerHTML = '';
+    if (modal) {
+        modal.style.display = 'none';
+        modal.innerHTML = '';
+    }
 }
 
 async function viewPDFQuestions(pdfId) {
@@ -1049,8 +1054,8 @@ async function editQuestionFromPDF(questionId, pdfId) {
     // Сохраняем pdfId для обновления после редактирования
     window.currentPdfId = pdfId;
 
-    // Вызываем существующую функцию редактирования из edit.js
-    await showEditModal(questionId);
+    // Вызываем wrapper функцию для редактирования
+    showEditQuestionModal(questionId);
 
     // После закрытия модального окна редактирования, обновляем список вопросов
     // Это будет обработано в edit.js при сохранении

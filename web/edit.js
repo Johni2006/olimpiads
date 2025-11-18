@@ -6,7 +6,7 @@ const API_URL = 'http://localhost:5001/api';
 let currentEditingQuestion = null;
 
 // Показать модальное окно редактирования
-function showEditModal(questionId) {
+window.showEditModal = function showEditModal(questionId) {
     // Загружаем вопрос
     fetch(`${API_URL}/questions/${questionId}`)
         .then(response => response.json())
@@ -24,13 +24,20 @@ function showEditModal(questionId) {
 }
 
 // Закрыть модальное окно
-function closeEditModal() {
-    document.getElementById('edit-modal').style.display = 'none';
+window.closeEditModal = function closeEditModal() {
+    const modal = document.getElementById('edit-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        // Очищаем содержимое для освобождения памяти
+        setTimeout(() => {
+            modal.innerHTML = '';
+        }, 300); // Небольшая задержка для анимации закрытия
+    }
     currentEditingQuestion = null;
 }
 
 // Отрисовать форму редактирования
-function renderEditForm(question) {
+window.renderEditForm = function renderEditForm(question) {
     const modal = document.getElementById('edit-modal');
     const tags = question.tags || {};
 
@@ -150,7 +157,7 @@ function renderEditForm(question) {
 }
 
 // Добавить вариант ответа
-function addOption() {
+window.addOption = function addOption() {
     const container = document.getElementById('edit-options');
     const count = container.children.length;
 
@@ -166,13 +173,13 @@ function addOption() {
 }
 
 // Удалить вариант ответа
-function removeOption(index) {
+window.removeOption = function removeOption(index) {
     const option = document.getElementById(`opt-text-${index}`).parentElement;
     option.remove();
 }
 
 // Сохранить изменения
-async function saveQuestion() {
+window.saveQuestion = async function saveQuestion() {
     if (!currentEditingQuestion) return;
 
     const questionId = currentEditingQuestion.id;
@@ -252,7 +259,7 @@ async function saveQuestion() {
 }
 
 // Удалить вопрос
-async function deleteQuestion(questionId) {
+window.deleteQuestion = async function deleteQuestion(questionId) {
     if (!confirm('❌ Вы уверены, что хотите удалить этот вопрос?\n\nЭто действие нельзя отменить!')) {
         return;
     }
@@ -284,7 +291,7 @@ async function deleteQuestion(questionId) {
 }
 
 // Обновить поля формы при изменении типа вопроса
-function updateQuestionTypeFields() {
+window.updateQuestionTypeFields = function updateQuestionTypeFields() {
     const type = document.getElementById('edit-type').value;
     const optionsContainer = document.getElementById('options-container');
     const essayContainer = document.getElementById('essay-container');
