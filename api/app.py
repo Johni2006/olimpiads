@@ -11,6 +11,9 @@ from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from database.db_manager import DatabaseManager
 import json
+import os
+import subprocess
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)  # Разрешаем CORS для работы с фронтендом
@@ -156,44 +159,6 @@ def get_stats():
         }), 500
 
 
-@app.route('/api/pdf/<path:pdf_path>', methods=['GET'])
-def get_pdf(pdf_path):
-    """
-    Получить исходный PDF файл
-
-    Args:
-        pdf_path: путь к PDF файлу (относительный или абсолютный)
-    """
-    try:
-        file_path = Path(pdf_path)
-
-        # Проверяем существование файла
-        if not file_path.exists():
-            # Пробуем относительно корня проекта
-            project_root = Path(__file__).parent.parent
-            file_path = project_root / pdf_path
-
-        if not file_path.exists():
-            return jsonify({
-                "success": False,
-                "error": "PDF файл не найден"
-            }), 404
-
-        # Отправляем файл
-        return send_file(
-            file_path,
-            mimetype='application/pdf',
-            as_attachment=False,  # Открывать в браузере, а не скачивать
-            download_name=file_path.name
-        )
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-
 @app.route('/api/random', methods=['GET'])
 def get_random_questions():
     """
@@ -272,6 +237,108 @@ def update_question(question_id):
                 "success": False,
                 "error": "Вопрос не найден"
             }), 404
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/questions/<int:question_id>', methods=['DELETE'])
+def delete_question(question_id):
+    """
+    Удалить вопрос
+
+    Returns:
+        {"success": true, "message": "..."}
+    """
+    try:
+        conn = sqlite3.connect('olympiad_questions.db')
+        cursor = conn.cursor()
+
+        # Проверяем существование вопроса
+        cursor.execute("SELECT id FROM questions WHERE id = ?", (question_id,))
+        question = cursor.fetchone()
+
+        if not question:
+            conn.close()
+            return jsonify({
+                "success": False,
+                "error": "Вопрос не найден"
+            }), 404
+
+        # Удаляем связанные данные
+        # 1. Удаляем теги
+        cursor.execute("DELETE FROM tags WHERE question_id = ?", (question_id,))
+
+        # 2. Удаляем варианты ответов
+        cursor.execute("DELETE FROM options WHERE question_id = ?", (question_id,))
+
+        # 3. Удаляем пары для matching
+        cursor.execute("DELETE FROM matching_pairs WHERE question_id = ?", (question_id,))
+
+        # 4. Удаляем сам вопрос
+        cursor.execute("DELETE FROM questions WHERE id = ?", (question_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": "Вопрос успешно удалён"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/questions', methods=['POST'])
+def create_question():
+    """
+    Создать новый вопрос
+
+    Body:
+        {
+            "text": "Текст вопроса",
+            "type": "choice",
+            "difficulty": 3,
+            "points": 2.0,
+            "options": [{"text": "...", "is_correct": true}, ...],
+            "tags": {"subject": ["Философия"], ...},
+            "source_pdf": "path/to/file.pdf" (optional),
+            "verified": false
+        }
+
+    Returns:
+        {"success": true, "question_id": 123}
+    """
+    try:
+        data = request.get_json()
+
+        if not data or not data.get('text'):
+            return jsonify({
+                "success": False,
+                "error": "Текст вопроса обязателен"
+            }), 400
+
+        # Создаем вопрос через DatabaseManager
+        question_id = db.add_question(data)
+
+        if question_id:
+            return jsonify({
+                "success": True,
+                "message": "Вопрос создан",
+                "question_id": question_id
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Не удалось создать вопрос"
+            }), 500
 
     except Exception as e:
         return jsonify({
@@ -921,11 +988,12 @@ def manage_pdfs():
             }), 500
 
 
-@app.route('/api/pdfs/<int:pdf_id>', methods=['GET', 'PUT'])
+@app.route('/api/pdfs/<int:pdf_id>', methods=['GET', 'PUT', 'DELETE'])
 def pdf_details(pdf_id):
     """
     GET: Получить информацию о конкретном PDF
     PUT: Обновить метаданные PDF
+    DELETE: Удалить PDF файл и все связанные вопросы
 
     PUT Body:
         - display_name: новое отображаемое имя
@@ -991,6 +1059,71 @@ def pdf_details(pdf_id):
                     "success": False,
                     "error": "PDF не найден или не удалось обновить"
                 }), 404
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    elif request.method == 'DELETE':
+        try:
+            conn = sqlite3.connect('olympiad_questions.db')
+            cursor = conn.cursor()
+
+            # Получаем информацию о PDF перед удалением
+            cursor.execute("SELECT file_path FROM pdf_files WHERE id = ?", (pdf_id,))
+            pdf = cursor.fetchone()
+
+            if not pdf:
+                conn.close()
+                return jsonify({
+                    "success": False,
+                    "error": "PDF не найден"
+                }), 404
+
+            file_path = pdf[0]
+
+            # Считаем сколько вопросов будет удалено
+            cursor.execute("SELECT COUNT(*) FROM questions WHERE source_pdf = ?", (file_path,))
+            questions_count = cursor.fetchone()[0]
+
+            # Удаляем все связанные данные
+            # 1. Удаляем теги вопросов
+            cursor.execute("""
+                DELETE FROM tags WHERE question_id IN (
+                    SELECT id FROM questions WHERE source_pdf = ?
+                )
+            """, (file_path,))
+
+            # 2. Удаляем варианты ответов
+            cursor.execute("""
+                DELETE FROM options WHERE question_id IN (
+                    SELECT id FROM questions WHERE source_pdf = ?
+                )
+            """, (file_path,))
+
+            # 3. Удаляем пары для matching
+            cursor.execute("""
+                DELETE FROM matching_pairs WHERE question_id IN (
+                    SELECT id FROM questions WHERE source_pdf = ?
+                )
+            """, (file_path,))
+
+            # 4. Удаляем вопросы
+            cursor.execute("DELETE FROM questions WHERE source_pdf = ?", (file_path,))
+
+            # 5. Удаляем запись о PDF
+            cursor.execute("DELETE FROM pdf_files WHERE id = ?", (pdf_id,))
+
+            conn.commit()
+            conn.close()
+
+            return jsonify({
+                "success": True,
+                "message": "PDF файл и связанные вопросы удалены",
+                "questions_deleted": questions_count
+            })
 
         except Exception as e:
             return jsonify({
@@ -1416,12 +1549,13 @@ def upload_pdf():
         relative_path = f"olympiads/manual/{filename}"
 
         # Сохраняем метаданные в БД
+        # is_manual = 1 потому что файл загружен через веб-интерфейс вручную
         cursor.execute("""
             INSERT INTO pdf_files (
                 file_path, display_name, university, olympiad, year, subject,
                 file_type, difficulty, file_hash, download_source,
                 is_manual, verification_status, last_parsed_at, parser_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'not_verified', CURRENT_TIMESTAMP, '1.0.0')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'not_verified', CURRENT_TIMESTAMP, '1.0.0')
         """, (
             relative_path, display_name, university, olympiad, year, subject,
             file_type, difficulty, file_hash, download_source
@@ -1607,6 +1741,471 @@ def apply_reparse(pdf_id):
         }), 500
 
 
+# ==================== ПРОСМОТР PDF ФАЙЛОВ ====================
+
+@app.route('/api/pdf/<path:file_path>', methods=['GET', 'HEAD'])
+def view_pdf(file_path):
+    """
+    Отдать PDF файл для просмотра
+
+    Args:
+        file_path: Относительный путь к PDF файлу
+
+    Returns:
+        PDF файл
+    """
+    try:
+        import os
+        from urllib.parse import unquote
+        from pathlib import Path
+
+        # Декодируем путь
+        file_path = unquote(file_path)
+
+        # Пробуем разные варианты базовых директорий
+        base_dirs = [
+            Path(__file__).parent.parent,  # Корень проекта
+            Path.cwd(),  # Текущая директория
+        ]
+
+        full_path = None
+        for base_dir in base_dirs:
+            test_path = base_dir / file_path
+            if test_path.exists():
+                full_path = test_path
+                break
+
+        # Если не нашли, пробуем как абсолютный путь
+        if not full_path and os.path.exists(file_path):
+            full_path = Path(file_path)
+
+        if not full_path or not full_path.exists():
+            # Provide helpful error message for debugging
+            searched_paths = [str(base_dir / file_path) for base_dir in base_dirs]
+            return jsonify({
+                "success": False,
+                "error": "PDF файл не найден",
+                "message": "Файл отсутствует в файловой системе. Возможно, он был удалён или не был загружен.",
+                "requested_path": file_path,
+                "searched_locations": searched_paths
+            }), 404
+
+        # Отдаем файл
+        return send_file(
+            str(full_path),
+            mimetype='application/pdf',
+            as_attachment=False,  # Открыть в браузере, а не скачать
+            download_name=full_path.name
+        )
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Ошибка при открытии PDF: {str(e)}"
+        }), 500
+
+
+# ==================== ЗАГРУЗЧИК ИЗ СЕТИ ====================
+
+# Путь к конфигурации загрузчика
+DOWNLOADER_SCRIPT = Path(__file__).parent.parent / 'olympiad_downloader.py'
+DOWNLOADER_DB = Path(__file__).parent.parent / 'olympiads' / 'database.json'
+DOWNLOADER_LOGS_DIR = Path(__file__).parent.parent / 'olympiads' / 'logs'
+
+@app.route('/api/downloader/sources', methods=['GET'])
+def get_downloader_sources():
+    """Получить список источников загрузки"""
+    try:
+        # Читаем конфигурацию из olympiad_downloader.py
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("downloader", DOWNLOADER_SCRIPT)
+        downloader = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(downloader)
+
+        sources = downloader.OLYMPIAD_SOURCES
+
+        return jsonify({
+            "success": True,
+            "sources": sources
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/downloader/sources', methods=['POST'])
+def add_downloader_source():
+    """Добавить новый источник загрузки"""
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        config = data.get('config')
+
+        if not name or not config:
+            return jsonify({
+                "success": False,
+                "error": "Необходимо указать name и config"
+            }), 400
+
+        # Читаем файл olympiad_downloader.py
+        with open(DOWNLOADER_SCRIPT, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Находим OLYMPIAD_SOURCES
+        import re
+        pattern = r'(OLYMPIAD_SOURCES = \{)(.*?)(\n\})'
+        match = re.search(pattern, content, re.DOTALL)
+
+        if not match:
+            return jsonify({
+                "success": False,
+                "error": "Не удалось найти OLYMPIAD_SOURCES в файле"
+            }), 500
+
+        # Формируем новую запись
+        urls_str = ',\n            '.join([f'"{url}"' for url in config['urls']])
+        new_entry = f'''    "{name}": {{
+        "urls": [
+            {urls_str}
+        ],
+        "type": "{config['type']}"
+    }},'''
+
+        # Вставляем новую запись
+        new_sources = match.group(1) + '\n' + new_entry + match.group(2) + match.group(3)
+        new_content = content[:match.start()] + new_sources + content[match.end():]
+
+        # Сохраняем файл
+        with open(DOWNLOADER_SCRIPT, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+
+        return jsonify({
+            "success": True,
+            "message": f"Источник {name} успешно добавлен"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/downloader/sources/<source_name>', methods=['PUT'])
+def update_downloader_source(source_name):
+    """Обновить источник загрузки"""
+    try:
+        data = request.get_json()
+        urls = data.get('urls', [])
+        source_type = data.get('type', 'selenium')
+
+        # Читаем файл
+        with open(DOWNLOADER_SCRIPT, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Находим и обновляем конкретный источник
+        import re
+        # Ищем источник по имени
+        pattern = rf'("{source_name}": \{{)(.*?)(\n    \}},)'
+        match = re.search(pattern, content, re.DOTALL)
+
+        if not match:
+            return jsonify({
+                "success": False,
+                "error": f"Источник {source_name} не найден"
+            }), 404
+
+        # Формируем новую конфигурацию
+        urls_str = ',\n            '.join([f'"{url}"' for url in urls])
+        new_config = f'''"urls": [
+            {urls_str}
+        ],
+        "type": "{source_type}"'''
+
+        new_entry = match.group(1) + '\n        ' + new_config + match.group(3)
+        new_content = content[:match.start()] + new_entry + content[match.end():]
+
+        # Сохраняем
+        with open(DOWNLOADER_SCRIPT, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+
+        return jsonify({
+            "success": True,
+            "message": f"Источник {source_name} обновлён"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/downloader/sources/<source_name>', methods=['DELETE'])
+def delete_downloader_source(source_name):
+    """Удалить источник загрузки"""
+    try:
+        # Читаем файл
+        with open(DOWNLOADER_SCRIPT, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Находим и удаляем источник
+        import re
+        pattern = rf'    "{source_name}": \{{.*?\n    \}},\n'
+        new_content = re.sub(pattern, '', content, flags=re.DOTALL)
+
+        if new_content == content:
+            return jsonify({
+                "success": False,
+                "error": f"Источник {source_name} не найден"
+            }), 404
+
+        # Сохраняем
+        with open(DOWNLOADER_SCRIPT, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+
+        return jsonify({
+            "success": True,
+            "message": f"Источник {source_name} удалён"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/downloader/start', methods=['POST'])
+def start_downloader():
+    """Запустить загрузчик"""
+    try:
+        data = request.get_json()
+        mode = data.get('mode', 'update')  # update, full, dry
+
+        # Формируем команду
+        cmd = ['python3', str(DOWNLOADER_SCRIPT)]
+
+        if mode == 'full':
+            cmd.append('--full')
+        elif mode == 'dry':
+            cmd.append('--dry')
+        else:
+            cmd.append('--update')
+
+        # Запускаем в фоне
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(DOWNLOADER_SCRIPT.parent)
+        )
+
+        return jsonify({
+            "success": True,
+            "message": f"Загрузчик запущен в режиме {mode}",
+            "pid": process.pid
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/downloader/logs', methods=['GET'])
+def get_downloader_logs():
+    """Получить логи загрузчика"""
+    try:
+        # Находим последний лог файл
+        DOWNLOADER_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        log_files = sorted(DOWNLOADER_LOGS_DIR.glob('download_*.log'), key=lambda x: x.stat().st_mtime, reverse=True)
+
+        if not log_files:
+            return jsonify({
+                "success": True,
+                "logs": []
+            })
+
+        # Читаем последний лог
+        latest_log = log_files[0]
+        with open(latest_log, 'r', encoding='utf-8') as f:
+            logs = f.readlines()
+
+        # Ограничиваем до последних 100 строк
+        logs = logs[-100:]
+
+        return jsonify({
+            "success": True,
+            "logs": [line.strip() for line in logs],
+            "log_file": latest_log.name
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/downloader/stats', methods=['GET'])
+def get_downloader_stats():
+    """Получить статистику загрузчика"""
+    try:
+        if not DOWNLOADER_DB.exists():
+            return jsonify({
+                "success": True,
+                "stats": {
+                    "total_files": 0,
+                    "last_update": None,
+                    "by_source": {}
+                }
+            })
+
+        # Читаем базу данных загрузчика
+        with open(DOWNLOADER_DB, 'r', encoding='utf-8') as f:
+            db_data = json.load(f)
+
+        # Подсчитываем статистику
+        total_files = len(db_data.get('files', {}))
+        last_update = db_data.get('last_update')
+
+        # Статистика по источникам
+        by_source = {}
+        for file_info in db_data.get('files', {}).values():
+            org = file_info.get('organizer', 'unknown')
+            by_source[org] = by_source.get(org, 0) + 1
+
+        return jsonify({
+            "success": True,
+            "stats": {
+                "total_files": total_files,
+                "last_update": last_update,
+                "by_source": by_source
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/downloader/subjects', methods=['GET'])
+def get_subjects():
+    """Получить список предметов для поиска"""
+    try:
+        # Читаем конфигурацию из olympiad_downloader.py
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("downloader", DOWNLOADER_SCRIPT)
+        downloader = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(downloader)
+
+        subjects = downloader.SUBJECTS
+
+        return jsonify({
+            "success": True,
+            "subjects": subjects
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/downloader/subjects', methods=['POST'])
+def add_subject():
+    """Добавить новый предмет для поиска"""
+    try:
+        data = request.get_json()
+        subject = data.get('subject', '').strip().lower()
+
+        if not subject:
+            return jsonify({
+                "success": False,
+                "error": "Необходимо указать название предмета"
+            }), 400
+
+        # Читаем файл olympiad_downloader.py
+        with open(DOWNLOADER_SCRIPT, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Находим SUBJECTS
+        import re
+        pattern = r'(SUBJECTS = \[)(.*?)(\n\])'
+        match = re.search(pattern, content, re.DOTALL)
+
+        if not match:
+            return jsonify({
+                "success": False,
+                "error": "Не удалось найти SUBJECTS в файле"
+            }), 500
+
+        # Проверяем, что предмет еще не добавлен
+        current_subjects = match.group(2)
+        if f'"{subject}"' in current_subjects:
+            return jsonify({
+                "success": False,
+                "error": f"Предмет '{subject}' уже существует"
+            }), 400
+
+        # Добавляем новый предмет в конец списка (перед последней запятой если она есть)
+        subjects_part = match.group(2).rstrip()
+        if subjects_part and not subjects_part.endswith(','):
+            subjects_part += ','
+
+        new_subjects = subjects_part + f'\n    "{subject}"'
+        new_content = content[:match.start()] + match.group(1) + new_subjects + match.group(3) + content[match.end():]
+
+        # Сохраняем файл
+        with open(DOWNLOADER_SCRIPT, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+
+        return jsonify({
+            "success": True,
+            "message": f"Предмет '{subject}' успешно добавлен"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/downloader/subjects/<subject>', methods=['DELETE'])
+def delete_subject(subject):
+    """Удалить предмет из поиска"""
+    try:
+        # Читаем файл
+        with open(DOWNLOADER_SCRIPT, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Находим и удаляем предмет
+        import re
+        # Ищем строку с предметом (с учетом кавычек и возможной запятой)
+        patterns = [
+            rf',?\s*"{subject}",?\s*\n',  # Предмет на отдельной строке
+            rf',\s*"{subject}"',          # Предмет в конце списка
+            rf'"{subject}",\s*',          # Предмет в начале/середине списка
+        ]
+
+        original_content = content
+        for pattern in patterns:
+            content = re.sub(pattern, '', content)
+            if content != original_content:
+                break
+
+        if content == original_content:
+            return jsonify({
+                "success": False,
+                "error": f"Предмет '{subject}' не найден"
+            }), 404
+
+        # Сохраняем
+        with open(DOWNLOADER_SCRIPT, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+        return jsonify({
+            "success": True,
+            "message": f"Предмет '{subject}' удалён"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 if __name__ == '__main__':
     print("🚀 Запуск API сервера...")
     print("📍 API доступен по адресу: http://localhost:5001")
@@ -1635,6 +2234,17 @@ if __name__ == '__main__':
     print("\n   === АДМИНИСТРИРОВАНИЕ ===")
     print("   POST /api/admin/backup        - Создать бэкап БД")
     print("   POST /api/admin/sync-db       - Синхронизировать БД")
+    print("\n   === ЗАГРУЗЧИК ИЗ СЕТИ ===")
+    print("   GET  /api/downloader/sources  - Список источников загрузки")
+    print("   POST /api/downloader/sources  - Добавить источник")
+    print("   PUT  /api/downloader/sources/<name> - Обновить источник")
+    print("   DEL  /api/downloader/sources/<name> - Удалить источник")
+    print("   GET  /api/downloader/subjects - Список предметов для поиска")
+    print("   POST /api/downloader/subjects - Добавить предмет")
+    print("   DEL  /api/downloader/subjects/<name> - Удалить предмет")
+    print("   POST /api/downloader/start    - Запустить загрузчик")
+    print("   GET  /api/downloader/logs     - Получить логи")
+    print("   GET  /api/downloader/stats    - Статистика загрузок")
     print("\n   === ВИКТОРИНЫ ===")
     print("   GET  /api/source-pdfs         - Список PDF файлов")
     print("   GET  /api/questions/by-pdf    - Вопросы из PDF")

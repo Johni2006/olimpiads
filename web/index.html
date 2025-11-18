@@ -57,6 +57,7 @@
             font-size: 1.1em;
             transition: all 0.3s;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            color: #333;
         }
 
         .tab:hover {
@@ -224,8 +225,10 @@
             background: #2196f3;
             color: white;
             text-decoration: none;
+            border: none;
             border-radius: 6px;
             font-size: 0.9em;
+            cursor: pointer;
             transition: background 0.3s;
         }
 
@@ -470,6 +473,20 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
+        }
+
+        .btn-danger {
+            padding: 15px 30px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
         }
 
         .edit-btn {
@@ -822,6 +839,84 @@
             <!-- Администрирование -->
             <div id="admin" class="tab-content">
                 <h2>Администрирование системы</h2>
+
+                <!-- Загрузка из сети -->
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3>🌐 Загрузка из сети</h3>
+
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px; margin-top: 15px;">
+                        <!-- Управление загрузкой -->
+                        <div style="background: white; padding: 15px; border-radius: 8px;">
+                            <h4>🚀 Запуск загрузчика</h4>
+                            <p style="color: #666; margin: 10px 0;">Скачать материалы олимпиад с внешних источников</p>
+
+                            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button onclick="startDownloader('update')" class="btn-secondary">
+                                    🔄 Обновление (новые файлы)
+                                </button>
+                                <button onclick="startDownloader('full')" class="btn-secondary">
+                                    📥 Полная загрузка
+                                </button>
+                                <button onclick="startDownloader('dry')" class="btn-secondary">
+                                    🧪 Тестовый режим
+                                </button>
+                            </div>
+
+                            <div id="downloader-status" style="margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 5px; display: none;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <strong>Статус:</strong>
+                                    <span id="downloader-status-text">Готов</span>
+                                </div>
+                                <div id="downloader-progress" style="margin-top: 10px;"></div>
+                            </div>
+
+                            <!-- Логи загрузки -->
+                            <div style="margin-top: 15px;">
+                                <h4 style="margin-bottom: 10px;">📋 Логи загрузки</h4>
+                                <div id="downloader-logs" style="background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 0.85em; max-height: 300px; overflow-y: auto;">
+                                    <div style="color: #888;">Логи появятся здесь после запуска загрузчика...</div>
+                                </div>
+                                <button onclick="refreshDownloaderLogs()" style="margin-top: 10px; padding: 8px 15px; font-size: 0.9em;">
+                                    🔄 Обновить логи
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Статистика загрузок -->
+                        <div style="background: white; padding: 15px; border-radius: 8px;">
+                            <h4>📊 Статистика</h4>
+                            <div id="downloader-stats" style="margin-top: 15px;">
+                                <!-- Статистика будет загружена здесь -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Источники загрузки -->
+                    <div style="background: white; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h4>🎯 Источники загрузки</h4>
+                            <button onclick="showAddSourceModal()" class="btn-secondary" style="padding: 8px 15px; font-size: 0.9em;">
+                                ➕ Добавить источник
+                            </button>
+                        </div>
+                        <div id="sources-list" style="max-height: 400px; overflow-y: auto;">
+                            <!-- Список источников будет загружен здесь -->
+                        </div>
+                    </div>
+
+                    <!-- Предметы для поиска -->
+                    <div style="background: white; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h4>📚 Предметы для поиска</h4>
+                            <button onclick="showAddSubjectModal()" class="btn-secondary" style="padding: 8px 15px; font-size: 0.9em;">
+                                ➕ Добавить предмет
+                            </button>
+                        </div>
+                        <div id="subjects-list" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            <!-- Список предметов будет загружен здесь -->
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Управление базой данных -->
                 <div style="background: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px;">

@@ -47,6 +47,9 @@ function switchTab(tabName) {
         loadPDFList();
     } else if (tabName === 'admin') {
         loadAdminStats();
+        loadSourcesList();
+        loadDownloaderStats();
+        loadSubjectsList();
     }
 }
 
@@ -620,6 +623,7 @@ function displayPDFList(pdfs) {
                                     <span class="status-indicator ${statusColor}"></span>
                                     ${getVerificationLabel(pdf.verification_status)}
                                 </span>
+                                ${pdf.is_manual ? '<span class="tag" style="background: #9c27b0; color: white;">📤 Загружен вручную</span>' : ''}
                             </div>
                             <div class="question-meta">
                                 ${pdf.university ? `<span class="tag university">${pdf.university}</span>` : ''}
@@ -734,7 +738,17 @@ async function editPDF(pdfId) {
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>Редактирование PDF: ${pdf.display_name}</h2>
-                    <button class="close-btn" onclick="closeEditModal()">&times;</button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        ${pdf.file_path && !pdf.is_manual ? `
+                            <a href="${API_URL}/pdf/${encodeURIComponent(pdf.file_path)}"
+                               target="_blank"
+                               class="view-pdf-btn"
+                               title="Посмотреть PDF файл">
+                                📄 PDF
+                            </a>
+                        ` : ''}
+                        <button class="close-btn" onclick="closeEditModal()">&times;</button>
+                    </div>
                 </div>
                 <div class="modal-body">
                     <form id="edit-pdf-form">
@@ -774,6 +788,13 @@ async function editPDF(pdfId) {
                             </select>
                         </div>
 
+                        <div class="form-group">
+                            <label>Способ загрузки</label>
+                            <div style="padding: 10px; background: ${pdf.is_manual ? '#e3f2fd' : '#f5f5f5'}; border-radius: 4px; border-left: 4px solid ${pdf.is_manual ? '#2196f3' : '#9e9e9e'};">
+                                ${pdf.is_manual ? '📤 Загружен вручную' : '🤖 Загружен автоматически'}
+                            </div>
+                        </div>
+
                         <label class="checkbox-label">
                             <input type="checkbox" id="edit-cascade" checked>
                             Обновить теги у всех вопросов из этого PDF
@@ -782,6 +803,7 @@ async function editPDF(pdfId) {
                         <div class="form-actions">
                             <button type="submit" class="btn-primary">💾 Сохранить изменения</button>
                             <button type="button" class="btn-secondary" onclick="closeEditModal()">Отмена</button>
+                            <button type="button" class="btn-danger" onclick="deletePDFFile(${pdfId})" style="margin-left: auto;">🗑️ Удалить файл</button>
                         </div>
                     </form>
                 </div>
@@ -845,6 +867,31 @@ async function savePDFChanges(pdfId) {
     }
 }
 
+async function deletePDFFile(pdfId) {
+    if (!confirm('❌ Вы уверены, что хотите удалить этот PDF файл?\n\nЭто действие также удалит ВСЕ связанные вопросы из этого файла!')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/pdfs/${pdfId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`✅ PDF файл удалён!\nУдалено вопросов: ${data.questions_deleted || 0}`);
+            closeEditModal();
+            loadPDFList();
+        } else {
+            alert('❌ Ошибка: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Ошибка удаления:', error);
+        alert('❌ Ошибка удаления: ' + error.message);
+    }
+}
+
 function closeEditModal() {
     const modal = document.getElementById('edit-modal');
     modal.style.display = 'none';
@@ -885,7 +932,17 @@ async function viewPDFQuestions(pdfId) {
             <div class="modal-content" style="max-width: 1200px;">
                 <div class="modal-header">
                     <h2>Вопросы из: ${pdf.display_name}</h2>
-                    <button class="close-btn" onclick="closeEditModal()">&times;</button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        ${pdf.file_path && !pdf.is_manual ? `
+                            <a href="${API_URL}/pdf/${encodeURIComponent(pdf.file_path)}"
+                               target="_blank"
+                               class="view-pdf-btn"
+                               title="Открыть PDF файл">
+                                📄 Открыть PDF
+                            </a>
+                        ` : ''}
+                        <button class="close-btn" onclick="closeEditModal()">&times;</button>
+                    </div>
                 </div>
                 <div class="modal-body">
                     <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
@@ -908,14 +965,28 @@ async function viewPDFQuestions(pdfId) {
                                             ${q.difficulty ? `<span class="tag difficulty">Сложность: ${q.difficulty}</span>` : ''}
                                         </div>
                                     </div>
-                                    <div>
+                                    <div style="display: flex; gap: 5px;">
                                         <button class="edit-btn" onclick="editQuestionFromPDF(${q.id}, ${pdfId})" style="white-space: nowrap;">
                                             ✏️ Редактировать
                                         </button>
+                                        ${q.source_pdf ? `
+                                            <a href="${API_URL}/pdf/${encodeURIComponent(q.source_pdf)}"
+                                               target="_blank"
+                                               class="view-pdf-btn"
+                                               style="padding: 8px 12px; font-size: 0.9em;"
+                                               title="Открыть PDF">
+                                                📄
+                                            </a>
+                                        ` : ''}
                                     </div>
                                 </div>
                             </div>
                         `).join('')}
+                    </div>
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button class="btn-primary" onclick="addNewQuestion(${pdfId}, '${pdf.file_path.replace(/'/g, "\\'")}')">
+                            ➕ Добавить новый вопрос
+                        </button>
                     </div>
                 </div>
             </div>
@@ -943,6 +1014,208 @@ async function refreshPDFQuestions() {
     if (window.currentPdfId) {
         await viewPDFQuestions(window.currentPdfId);
         await loadPDFList(); // Обновляем также список PDF для обновления статуса
+    }
+}
+
+// Добавить новый вопрос
+function addNewQuestion(pdfId = null, sourcePdf = null) {
+    const modal = document.getElementById('edit-modal');
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ Создание нового вопроса</h2>
+                <button class="close-btn" onclick="closeEditModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="new-question-form">
+                    <div class="form-group">
+                        <label>Текст вопроса:</label>
+                        <textarea id="new-text" rows="4" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Тип вопроса:</label>
+                        <select id="new-type" onchange="updateNewQuestionTypeFields()">
+                            <option value="choice">Одиночный выбор</option>
+                            <option value="multiple_choice">Множественный выбор</option>
+                            <option value="matching">Соответствие</option>
+                            <option value="text">Текстовый ответ</option>
+                            <option value="essay">Эссе</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Сложность (1-5):</label>
+                            <input type="number" id="new-difficulty" min="1" max="5" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Баллы:</label>
+                            <input type="number" id="new-points" step="0.5" value="1">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Предмет:</label>
+                            <input type="text" id="new-subject">
+                        </div>
+                        <div class="form-group">
+                            <label>Университет:</label>
+                            <input type="text" id="new-university">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Год:</label>
+                        <input type="text" id="new-year">
+                    </div>
+
+                    <div id="new-options-container">
+                        <label>Варианты ответов:</label>
+                        <div id="new-options">
+                            <div class="option-edit">
+                                <input type="checkbox" id="new-opt-correct-0">
+                                <input type="text" id="new-opt-text-0" placeholder="Вариант 1">
+                                <button type="button" onclick="removeNewOption(0)">✕</button>
+                            </div>
+                        </div>
+                        <button type="button" onclick="addNewOption()" class="btn-secondary">+ Добавить вариант</button>
+                    </div>
+
+                    <div id="new-essay-container" style="display: none;">
+                        <div class="form-group">
+                            <label>Рекомендации по оцениванию:</label>
+                            <textarea id="new-essay-guidelines" rows="8" placeholder="Опишите критерии оценивания..."></textarea>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="new-source-pdf" value="${sourcePdf || ''}">
+                    <input type="hidden" id="new-pdf-id" value="${pdfId || ''}">
+
+                    <div class="form-actions">
+                        <button type="button" onclick="saveNewQuestion()" class="btn-primary">💾 Создать вопрос</button>
+                        <button type="button" onclick="closeEditModal()" class="btn-secondary">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+// Обновить поля формы нового вопроса при изменении типа
+function updateNewQuestionTypeFields() {
+    const type = document.getElementById('new-type').value;
+    const optionsContainer = document.getElementById('new-options-container');
+    const essayContainer = document.getElementById('new-essay-container');
+
+    if (type === 'choice' || type === 'multiple_choice') {
+        optionsContainer.style.display = 'block';
+        essayContainer.style.display = 'none';
+    } else if (type === 'essay') {
+        optionsContainer.style.display = 'none';
+        essayContainer.style.display = 'block';
+    } else {
+        optionsContainer.style.display = 'none';
+        essayContainer.style.display = 'none';
+    }
+}
+
+// Добавить вариант ответа в новом вопросе
+function addNewOption() {
+    const container = document.getElementById('new-options');
+    const count = container.children.length;
+
+    const optionDiv = document.createElement('div');
+    optionDiv.className = 'option-edit';
+    optionDiv.innerHTML = `
+        <input type="checkbox" id="new-opt-correct-${count}">
+        <input type="text" id="new-opt-text-${count}" placeholder="Вариант ${count + 1}">
+        <button type="button" onclick="removeNewOption(${count})">✕</button>
+    `;
+    container.appendChild(optionDiv);
+}
+
+// Удалить вариант ответа в новом вопросе
+function removeNewOption(index) {
+    const option = document.getElementById(`new-opt-text-${index}`);
+    if (option) option.parentElement.remove();
+}
+
+// Сохранить новый вопрос
+async function saveNewQuestion() {
+    const data = {
+        text: document.getElementById('new-text').value,
+        type: document.getElementById('new-type').value,
+        difficulty: parseInt(document.getElementById('new-difficulty').value),
+        points: parseFloat(document.getElementById('new-points').value),
+        verified: false,
+        tags: {
+            subject: [document.getElementById('new-subject').value].filter(v => v),
+            university: [document.getElementById('new-university').value].filter(v => v),
+            year: [document.getElementById('new-year').value].filter(v => v)
+        },
+        options: [],
+        source_pdf: document.getElementById('new-source-pdf').value || null
+    };
+
+    // Собираем варианты ответов
+    const optionsContainer = document.getElementById('new-options');
+    if (optionsContainer && (data.type === 'choice' || data.type === 'multiple_choice')) {
+        const optionDivs = optionsContainer.querySelectorAll('.option-edit');
+        optionDivs.forEach((div, i) => {
+            const textInput = div.querySelector(`#new-opt-text-${i}`);
+            const correctCheckbox = div.querySelector(`#new-opt-correct-${i}`);
+
+            if (textInput && textInput.value.trim()) {
+                data.options.push({
+                    text: textInput.value.trim(),
+                    is_correct: correctCheckbox ? correctCheckbox.checked : false
+                });
+            }
+        });
+    }
+
+    // Для эссе сохраняем рекомендации
+    if (data.type === 'essay') {
+        const guidelines = document.getElementById('new-essay-guidelines');
+        if (guidelines && guidelines.value.trim()) {
+            data.options.push({
+                text: guidelines.value.trim(),
+                is_correct: false
+            });
+        }
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/questions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert('✅ Вопрос успешно создан!');
+            closeEditModal();
+
+            // Обновляем список
+            const pdfId = document.getElementById('new-pdf-id').value;
+            if (pdfId) {
+                await refreshPDFQuestions();
+            } else if (typeof applyFilters === 'function') {
+                applyFilters();
+            }
+        } else {
+            alert('❌ Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Ошибка создания вопроса:', error);
+        alert('❌ Ошибка создания вопроса');
     }
 }
 
@@ -1116,6 +1389,589 @@ async function loadAdminStats() {
                 <p>${error.message}</p>
             </div>
         `;
+    }
+}
+
+// =========================
+// ЗАГРУЗЧИК ИЗ СЕТИ
+// =========================
+
+// Запустить загрузчик
+async function startDownloader(mode) {
+    const statusDiv = document.getElementById('downloader-status');
+    const statusText = document.getElementById('downloader-status-text');
+    const logsDiv = document.getElementById('downloader-logs');
+
+    try {
+        statusDiv.style.display = 'block';
+        statusText.textContent = 'Запуск загрузчика...';
+        statusText.style.color = '#ff9800';
+
+        const response = await fetch(`${API_URL}/downloader/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ mode: mode })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            statusText.textContent = `Загрузчик запущен (${mode})`;
+            statusText.style.color = '#4caf50';
+
+            // Начинаем автообновление логов
+            startLogsAutoRefresh();
+
+            alert(`✅ Загрузчик запущен в режиме: ${mode}\n\nЛоги будут обновляться автоматически.`);
+        } else {
+            statusText.textContent = 'Ошибка запуска';
+            statusText.style.color = '#f44336';
+            alert('❌ Ошибка: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Ошибка запуска загрузчика:', error);
+        statusText.textContent = 'Ошибка';
+        statusText.style.color = '#f44336';
+        alert('❌ Ошибка запуска загрузчика');
+    }
+}
+
+// Автообновление логов
+let logsRefreshInterval = null;
+
+function startLogsAutoRefresh() {
+    // Останавливаем предыдущий интервал
+    if (logsRefreshInterval) {
+        clearInterval(logsRefreshInterval);
+    }
+
+    // Обновляем логи каждые 3 секунды
+    logsRefreshInterval = setInterval(refreshDownloaderLogs, 3000);
+
+    // Первое обновление сразу
+    refreshDownloaderLogs();
+}
+
+function stopLogsAutoRefresh() {
+    if (logsRefreshInterval) {
+        clearInterval(logsRefreshInterval);
+        logsRefreshInterval = null;
+    }
+}
+
+// Обновить логи загрузчика
+async function refreshDownloaderLogs() {
+    const logsDiv = document.getElementById('downloader-logs');
+
+    try {
+        const response = await fetch(`${API_URL}/downloader/logs`);
+        const data = await response.json();
+
+        if (data.success && data.logs) {
+            if (data.logs.length === 0) {
+                logsDiv.innerHTML = '<div style="color: #888;">Логи пока пустые...</div>';
+            } else {
+                // Форматируем логи с подсветкой
+                const formattedLogs = data.logs.map(line => {
+                    let color = '#d4d4d4';
+                    if (line.includes('ERROR') || line.includes('Ошибка') || line.includes('✗')) {
+                        color = '#f48771';
+                    } else if (line.includes('WARNING') || line.includes('⚠')) {
+                        color = '#dcdcaa';
+                    } else if (line.includes('INFO') || line.includes('✓')) {
+                        color = '#4ec9b0';
+                    } else if (line.includes('СТАРТ') || line.includes('ГОТОВО') || line.includes('ИТОГИ')) {
+                        color = '#569cd6';
+                    }
+                    return `<div style="color: ${color};">${line}</div>`;
+                }).join('');
+
+                logsDiv.innerHTML = formattedLogs;
+                // Прокручиваем вниз
+                logsDiv.scrollTop = logsDiv.scrollHeight;
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки логов:', error);
+    }
+}
+
+// Загрузить статистику загрузчика
+async function loadDownloaderStats() {
+    const container = document.getElementById('downloader-stats');
+    container.innerHTML = '<div style="color: #999; padding: 20px; text-align: center;">Загрузка...</div>';
+
+    try {
+        const response = await fetch(`${API_URL}/downloader/stats`);
+        const data = await response.json();
+
+        if (data.success && data.stats) {
+            const stats = data.stats;
+            const totalFiles = stats.total_files || 0;
+            const lastUpdate = stats.last_update
+                ? new Date(stats.last_update).toLocaleString('ru-RU')
+                : 'Никогда';
+
+            let statsHtml = `
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <div style="font-size: 2.5em; font-weight: bold; color: #667eea;">${totalFiles}</div>
+                    <div style="color: #666; margin-top: 5px;">Всего файлов</div>
+                </div>
+                <div style="text-align: center; margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-radius: 5px;">
+                    <div style="font-size: 0.85em; color: #666;">Последнее обновление:</div>
+                    <div style="font-weight: 600; margin-top: 5px;">${lastUpdate}</div>
+                </div>
+            `;
+
+            // Топ источников
+            if (stats.by_source && Object.keys(stats.by_source).length > 0) {
+                statsHtml += '<div style="margin-top: 15px;"><div style="font-weight: 600; margin-bottom: 10px;">📊 По источникам:</div>';
+                const sorted = Object.entries(stats.by_source).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                sorted.forEach(([source, count]) => {
+                    statsHtml += `
+                        <div style="display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee;">
+                            <span style="font-size: 0.85em;">${source}</span>
+                            <span style="font-weight: 600; color: #667eea;">${count}</span>
+                        </div>
+                    `;
+                });
+                statsHtml += '</div>';
+            }
+
+            container.innerHTML = statsHtml;
+        } else {
+            container.innerHTML = '<div style="color: #999; text-align: center;">Нет данных</div>';
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки статистики:', error);
+        container.innerHTML = '<div style="color: #f44336; text-align: center;">Ошибка загрузки</div>';
+    }
+}
+
+// Загрузить список источников
+async function loadSourcesList() {
+    const container = document.getElementById('sources-list');
+    container.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">Загрузка источников...</div>';
+
+    try {
+        const response = await fetch(`${API_URL}/downloader/sources`);
+        const data = await response.json();
+
+        if (data.success && data.sources) {
+            const sources = data.sources;
+
+            if (Object.keys(sources).length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <h3>Нет источников</h3>
+                        <p>Добавьте первый источник для загрузки материалов</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+
+            for (const [name, config] of Object.entries(sources)) {
+                const urlCount = config.urls ? config.urls.length : 0;
+                const type = config.type || 'requests';
+
+                html += `
+                    <div style="border: 2px solid #e0e0e0; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; font-size: 1.1em; margin-bottom: 5px;">${name}</div>
+                            <div style="color: #666; font-size: 0.9em;">
+                                📌 ${urlCount} URL(s) |
+                                ${type === 'selenium' ? '🌐 Selenium (JavaScript)' : '🔗 Requests'}
+                            </div>
+                            <div style="margin-top: 8px; max-height: 100px; overflow-y: auto;">
+                                ${config.urls.slice(0, 3).map(url =>
+                                    `<div style="font-size: 0.8em; color: #999; margin-top: 3px;">• ${url}</div>`
+                                ).join('')}
+                                ${urlCount > 3 ? `<div style="font-size: 0.8em; color: #999; margin-top: 3px;">... и еще ${urlCount - 3}</div>` : ''}
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="editSource('${name}')" class="btn-secondary" style="padding: 8px 15px; font-size: 0.9em;">
+                                ✏️ Изменить
+                            </button>
+                            <button onclick="deleteSource('${name}')" class="btn-danger" style="padding: 8px 15px; font-size: 0.9em;">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки источников:', error);
+        container.innerHTML = '<div style="color: #f44336; padding: 20px; text-align: center;">Ошибка загрузки источников</div>';
+    }
+}
+
+// Показать модальное окно добавления источника
+function showAddSourceModal() {
+    const modal = document.getElementById('edit-modal');
+
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ Добавить источник загрузки</h2>
+                <button class="close-btn" onclick="closeEditModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-source-form">
+                    <div class="form-group">
+                        <label>Название источника:</label>
+                        <input type="text" id="source-name" placeholder="МГУ_Ломоносов" required>
+                        <small style="color: #666;">Используйте латиницу и подчеркивания</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Тип загрузчика:</label>
+                        <select id="source-type">
+                            <option value="requests">Requests (простые HTML страницы)</option>
+                            <option value="selenium">Selenium (сайты с JavaScript)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>URL адреса (по одному на строку):</label>
+                        <textarea id="source-urls" rows="8" placeholder="https://example.com/page1&#10;https://example.com/page2" required></textarea>
+                        <small style="color: #666;">Каждый URL с новой строки</small>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" onclick="saveNewSource()" class="btn-primary">💾 Сохранить источник</button>
+                        <button type="button" onclick="closeEditModal()" class="btn-secondary">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    modal.style.display = 'flex';
+}
+
+// Сохранить новый источник
+async function saveNewSource() {
+    const name = document.getElementById('source-name').value.trim();
+    const type = document.getElementById('source-type').value;
+    const urlsText = document.getElementById('source-urls').value.trim();
+
+    if (!name || !urlsText) {
+        alert('❌ Заполните все обязательные поля');
+        return;
+    }
+
+    // Разбиваем URL на массив
+    const urls = urlsText.split('\n')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+    if (urls.length === 0) {
+        alert('❌ Добавьте хотя бы один URL');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/downloader/sources`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name,
+                config: {
+                    urls: urls,
+                    type: type
+                }
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✅ Источник успешно добавлен!');
+            closeEditModal();
+            loadSourcesList();
+        } else {
+            alert('❌ Ошибка: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Ошибка сохранения источника:', error);
+        alert('❌ Ошибка сохранения источника');
+    }
+}
+
+// Редактировать источник
+async function editSource(name) {
+    try {
+        const response = await fetch(`${API_URL}/downloader/sources`);
+        const data = await response.json();
+
+        if (data.success && data.sources[name]) {
+            const config = data.sources[name];
+            const modal = document.getElementById('edit-modal');
+
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>✏️ Редактировать источник: ${name}</h2>
+                        <button class="close-btn" onclick="closeEditModal()">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="edit-source-form">
+                            <div class="form-group">
+                                <label>Название источника:</label>
+                                <input type="text" id="edit-source-name" value="${name}" disabled>
+                                <small style="color: #666;">Название нельзя изменить</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Тип загрузчика:</label>
+                                <select id="edit-source-type">
+                                    <option value="requests" ${config.type === 'requests' ? 'selected' : ''}>Requests (простые HTML страницы)</option>
+                                    <option value="selenium" ${config.type === 'selenium' ? 'selected' : ''}>Selenium (сайты с JavaScript)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label>URL адреса (по одному на строку):</label>
+                                <textarea id="edit-source-urls" rows="10">${config.urls.join('\n')}</textarea>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" onclick="updateSource('${name}')" class="btn-primary">💾 Сохранить изменения</button>
+                                <button type="button" onclick="closeEditModal()" class="btn-secondary">Отмена</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+
+            modal.style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки источника:', error);
+        alert('❌ Ошибка загрузки данных источника');
+    }
+}
+
+// Обновить источник
+async function updateSource(name) {
+    const type = document.getElementById('edit-source-type').value;
+    const urlsText = document.getElementById('edit-source-urls').value.trim();
+
+    const urls = urlsText.split('\n')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+    if (urls.length === 0) {
+        alert('❌ Добавьте хотя бы один URL');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/downloader/sources/${encodeURIComponent(name)}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                urls: urls,
+                type: type
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✅ Источник успешно обновлён!');
+            closeEditModal();
+            loadSourcesList();
+        } else {
+            alert('❌ Ошибка: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Ошибка обновления источника:', error);
+        alert('❌ Ошибка обновления источника');
+    }
+}
+
+// Удалить источник
+async function deleteSource(name) {
+    if (!confirm(`❌ Вы уверены, что хотите удалить источник "${name}"?\n\nЭто действие нельзя отменить!`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/downloader/sources/${encodeURIComponent(name)}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✅ Источник успешно удалён!');
+            loadSourcesList();
+        } else {
+            alert('❌ Ошибка: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Ошибка удаления источника:', error);
+        alert('❌ Ошибка удаления источника');
+    }
+}
+
+// =========================
+// УПРАВЛЕНИЕ ПРЕДМЕТАМИ
+// =========================
+
+// Загрузить список предметов
+async function loadSubjectsList() {
+    const container = document.getElementById('subjects-list');
+    container.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">Загрузка предметов...</div>';
+
+    try {
+        const response = await fetch(`${API_URL}/downloader/subjects`);
+        const data = await response.json();
+
+        if (data.success && data.subjects) {
+            const subjects = data.subjects;
+
+            if (subjects.length === 0) {
+                container.innerHTML = '<div style="color: #999; padding: 10px;">Нет предметов для поиска</div>';
+                return;
+            }
+
+            let html = '';
+            subjects.forEach(subject => {
+                html += `
+                    <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: #e3f2fd; border-radius: 20px; border: 2px solid #2196f3;">
+                        <span style="font-weight: 500;">${subject}</span>
+                        <button onclick="deleteSubject('${subject}')" style="background: none; border: none; cursor: pointer; color: #f44336; font-size: 1.2em; padding: 0; line-height: 1;" title="Удалить">
+                            ✕
+                        </button>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки предметов:', error);
+        container.innerHTML = '<div style="color: #f44336; padding: 10px;">Ошибка загрузки предметов</div>';
+    }
+}
+
+// Показать модальное окно добавления предмета
+function showAddSubjectModal() {
+    const modal = document.getElementById('edit-modal');
+
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ Добавить предмет для поиска</h2>
+                <button class="close-btn" onclick="closeEditModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-subject-form">
+                    <div class="form-group">
+                        <label>Название предмета:</label>
+                        <input type="text" id="subject-name" placeholder="философия" required>
+                        <small style="color: #666;">Название должно быть в нижнем регистре, например: "философия", "обществознание"</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Примеры предметов:</label>
+                        <div style="background: #f9f9f9; padding: 10px; border-radius: 5px; font-size: 0.9em; color: #666;">
+                            <div>• религиоведение</div>
+                            <div>• обществознание</div>
+                            <div>• философия</div>
+                            <div>• право</div>
+                            <div>• политология</div>
+                            <div>• социология</div>
+                            <div>• экономика</div>
+                            <div>• история</div>
+                            <div>• журналистика</div>
+                            <div>• иностранный язык</div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" onclick="addSubject()" class="btn-primary">💾 Добавить предмет</button>
+                        <button type="button" onclick="closeEditModal()" class="btn-secondary">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    modal.style.display = 'flex';
+}
+
+// Добавить предмет
+async function addSubject() {
+    const name = document.getElementById('subject-name').value.trim().toLowerCase();
+
+    if (!name) {
+        alert('❌ Введите название предмета');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/downloader/subjects`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ subject: name })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✅ Предмет успешно добавлен!');
+            closeEditModal();
+            loadSubjectsList();
+        } else {
+            alert('❌ Ошибка: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Ошибка добавления предмета:', error);
+        alert('❌ Ошибка добавления предмета');
+    }
+}
+
+// Удалить предмет
+async function deleteSubject(subject) {
+    if (!confirm(`❌ Вы уверены, что хотите удалить предмет "${subject}"?\n\nЗагрузчик больше не будет искать материалы по этому предмету.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/downloader/subjects/${encodeURIComponent(subject)}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✅ Предмет успешно удалён!');
+            loadSubjectsList();
+        } else {
+            alert('❌ Ошибка: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Ошибка удаления предмета:', error);
+        alert('❌ Ошибка удаления предмета');
     }
 }
 

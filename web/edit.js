@@ -1,5 +1,8 @@
 // Функции для редактирования вопросов
 
+// Конфигурация API (должна совпадать с app.js)
+const API_URL = 'http://localhost:5001/api';
+
 let currentEditingQuestion = null;
 
 // Показать модальное окно редактирования
@@ -35,7 +38,17 @@ function renderEditForm(question) {
         <div class="modal-content">
             <div class="modal-header">
                 <h2>✏️ Редактирование вопроса #${question.id}</h2>
-                <button class="close-btn" onclick="closeEditModal()">✕</button>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    ${question.source_pdf ? `
+                        <a href="${API_URL}/pdf/${encodeURIComponent(question.source_pdf)}"
+                           target="_blank"
+                           class="view-pdf-btn"
+                           title="Посмотреть исходный PDF">
+                            📄 PDF
+                        </a>
+                    ` : ''}
+                    <button class="close-btn" onclick="closeEditModal()">✕</button>
+                </div>
             </div>
 
             <div class="modal-body">
@@ -49,11 +62,12 @@ function renderEditForm(question) {
                     <!-- Тип вопроса -->
                     <div class="form-group">
                         <label>Тип вопроса:</label>
-                        <select id="edit-type">
+                        <select id="edit-type" onchange="updateQuestionTypeFields()">
                             <option value="choice" ${question.type === 'choice' ? 'selected' : ''}>Одиночный выбор</option>
                             <option value="multiple_choice" ${question.type === 'multiple_choice' ? 'selected' : ''}>Множественный выбор</option>
                             <option value="matching" ${question.type === 'matching' ? 'selected' : ''}>Соответствие</option>
                             <option value="text" ${question.type === 'text' ? 'selected' : ''}>Текстовый ответ</option>
+                            <option value="essay" ${question.type === 'essay' ? 'selected' : ''}>Эссе</option>
                         </select>
                     </div>
 
@@ -107,6 +121,14 @@ function renderEditForm(question) {
                         <button type="button" onclick="addOption()" class="btn-secondary">+ Добавить вариант</button>
                     </div>
 
+                    <!-- Рекомендации для эссе -->
+                    <div id="essay-container" style="display: ${question.type === 'essay' ? 'block' : 'none'}">
+                        <div class="form-group">
+                            <label>Рекомендации по оцениванию:</label>
+                            <textarea id="essay-guidelines" rows="8" placeholder="Опишите критерии оценивания, ключевые моменты, которые должны быть раскрыты...">${(question.options && question.options[0]) ? question.options[0].text : ''}</textarea>
+                        </div>
+                    </div>
+
                     <!-- Проверено -->
                     <div class="form-group">
                         <label class="checkbox-label">
@@ -119,6 +141,7 @@ function renderEditForm(question) {
                     <div class="form-actions">
                         <button type="button" onclick="saveQuestion()" class="btn-primary">💾 Сохранить</button>
                         <button type="button" onclick="closeEditModal()" class="btn-secondary">Отмена</button>
+                        <button type="button" onclick="deleteQuestion(${question.id})" class="btn-danger" style="margin-left: auto;">🗑️ Удалить вопрос</button>
                     </div>
                 </form>
             </div>
@@ -171,7 +194,7 @@ async function saveQuestion() {
 
     // Собираем варианты ответов
     const optionsContainer = document.getElementById('edit-options');
-    if (optionsContainer) {
+    if (optionsContainer && (data.type === 'choice' || data.type === 'multiple_choice')) {
         const optionDivs = optionsContainer.querySelectorAll('.option-edit');
         optionDivs.forEach((div, i) => {
             const textInput = div.querySelector(`#opt-text-${i}`);
@@ -184,6 +207,17 @@ async function saveQuestion() {
                 });
             }
         });
+    }
+
+    // Для эссе сохраняем рекомендации как первый вариант ответа
+    if (data.type === 'essay') {
+        const guidelines = document.getElementById('essay-guidelines');
+        if (guidelines && guidelines.value.trim()) {
+            data.options.push({
+                text: guidelines.value.trim(),
+                is_correct: false // Для эссе нет правильного ответа
+            });
+        }
     }
 
     try {
@@ -214,5 +248,56 @@ async function saveQuestion() {
     } catch (error) {
         console.error('Ошибка сохранения:', error);
         alert('❌ Ошибка сохранения');
+    }
+}
+
+// Удалить вопрос
+async function deleteQuestion(questionId) {
+    if (!confirm('❌ Вы уверены, что хотите удалить этот вопрос?\n\nЭто действие нельзя отменить!')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/questions/${questionId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert('✅ Вопрос успешно удалён!');
+            closeEditModal();
+
+            // Обновляем список вопросов
+            if (typeof refreshPDFQuestions === 'function' && window.currentPdfId) {
+                await refreshPDFQuestions();
+            } else if (typeof applyFilters === 'function') {
+                applyFilters();
+            }
+        } else {
+            alert('❌ Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Ошибка удаления:', error);
+        alert('❌ Ошибка удаления вопроса');
+    }
+}
+
+// Обновить поля формы при изменении типа вопроса
+function updateQuestionTypeFields() {
+    const type = document.getElementById('edit-type').value;
+    const optionsContainer = document.getElementById('options-container');
+    const essayContainer = document.getElementById('essay-container');
+
+    // Показываем варианты ответов только для choice и multiple_choice
+    if (type === 'choice' || type === 'multiple_choice') {
+        optionsContainer.style.display = 'block';
+        essayContainer.style.display = 'none';
+    } else if (type === 'essay') {
+        optionsContainer.style.display = 'none';
+        essayContainer.style.display = 'block';
+    } else {
+        optionsContainer.style.display = 'none';
+        essayContainer.style.display = 'none';
     }
 }
