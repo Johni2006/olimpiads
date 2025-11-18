@@ -78,7 +78,25 @@ class DatabaseManager(QuizManager):
 
         Returns:
             ID добавленного вопроса
+
+        Raises:
+            ValueError: Если вопрос типа choice/multiple_choice не имеет вариантов ответа
+                       или вопрос типа matching не имеет пар соответствия
         """
+        # Валидация: проверяем наличие вариантов ответа
+        if question_type in ['choice', 'multiple_choice']:
+            if not options or len(options) == 0:
+                raise ValueError(
+                    f"Вопрос типа '{question_type}' должен иметь хотя бы один вариант ответа"
+                )
+
+        # Валидация: проверяем наличие пар соответствия
+        if question_type == 'matching':
+            if not matching_pairs or len(matching_pairs) == 0:
+                raise ValueError(
+                    "Вопрос типа 'matching' должен иметь хотя бы одну пару соответствия"
+                )
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
@@ -557,14 +575,42 @@ class DatabaseManager(QuizManager):
 
         Returns:
             True если обновление успешно, False если вопрос не найден
+
+        Raises:
+            ValueError: Если обновление нарушает требования валидации
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Проверяем существование вопроса
-            cursor.execute("SELECT id FROM questions WHERE id = ?", (question_id,))
-            if not cursor.fetchone():
+            # Проверяем существование вопроса и получаем текущий тип
+            cursor.execute("SELECT id, type FROM questions WHERE id = ?", (question_id,))
+            row = cursor.fetchone()
+            if not row:
                 return False
+
+            current_type = row[1]
+            new_type = data.get('type', current_type)
+
+            # Валидация при изменении типа или опций
+            if 'type' in data or 'options' in data:
+                # Если новый тип - choice/multiple_choice, проверяем наличие вариантов
+                if new_type in ['choice', 'multiple_choice']:
+                    if 'options' in data:
+                        # Если обновляем варианты, проверяем что они не пустые
+                        if not data['options'] or len(data['options']) == 0:
+                            raise ValueError(
+                                f"Вопрос типа '{new_type}' должен иметь хотя бы один вариант ответа"
+                            )
+                    elif new_type != current_type:
+                        # Если меняем тип, проверяем что в БД уже есть варианты
+                        cursor.execute(
+                            "SELECT COUNT(*) as count FROM options WHERE question_id = ?",
+                            (question_id,)
+                        )
+                        if cursor.fetchone()[0] == 0:
+                            raise ValueError(
+                                f"Нельзя изменить тип вопроса на '{new_type}' без вариантов ответа"
+                            )
 
             # Обновляем поля вопроса
             update_fields = []

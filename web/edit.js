@@ -240,6 +240,12 @@ window.saveQuestion = async function saveQuestion() {
         }
     }
 
+    // ВАЛИДАЦИЯ: проверяем наличие вариантов ответа для типов choice/multiple_choice
+    if ((data.type === 'choice' || data.type === 'multiple_choice') && data.options.length === 0) {
+        alert('⚠️ Вопрос типа "Одиночный выбор" или "Множественный выбор" должен иметь хотя бы один вариант ответа!');
+        return;
+    }
+
     try {
         const response = await fetch(`${API_URL}/questions/${questionId}`, {
             method: 'PUT',

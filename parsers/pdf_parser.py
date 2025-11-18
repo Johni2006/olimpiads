@@ -332,6 +332,12 @@ class PDFParser:
         if not question_text or len(question_text) < 10:
             return None
 
+        # ВАЛИДАЦИЯ: пропускаем вопросы choice/multiple_choice без вариантов ответа
+        if question_type in ['choice', 'multiple_choice']:
+            if not options or len(options) == 0:
+                # Это невалидный вопрос - пропускаем его
+                return None
+
         # Формируем объект вопроса
         question_obj = {
             "text": question_text,
