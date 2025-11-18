@@ -286,8 +286,8 @@ function displayQuestions(questions) {
                         <strong>Вопрос ${index + 1}:</strong> ${q.text}
                         ${q.verified ? '<span class="verified-badge">✓ Проверено</span>' : ''}
                     </div>
-                    <div style="display: flex; gap: 10px;">
-                        <button class="edit-btn" onclick="showEditModal(${q.id})">✏️ Редактировать</button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="edit-btn" onclick="showEditQuestionModal(${q.id})">✏️ Редактировать</button>
                         ${q.source_pdf ? `
                             <a href="${API_URL}/pdf/${encodeURIComponent(q.source_pdf)}"
                                target="_blank"
@@ -296,6 +296,9 @@ function displayQuestions(questions) {
                                 📄 PDF
                             </a>
                         ` : ''}
+                        <button class="btn-danger" style="padding: 8px 15px; font-size: 0.9em;" onclick="deleteQuestionFromList(${q.id})" title="Удалить вопрос">
+                            🗑️
+                        </button>
                     </div>
                 </div>
 
@@ -321,6 +324,49 @@ function displayQuestions(questions) {
             </div>
         `;
     }).join('');
+}
+
+// Функция для редактирования вопроса из списка
+function showEditQuestionModal(questionId) {
+    // Используем функцию из edit.js
+    if (typeof showEditModal === 'function') {
+        showEditModal(questionId);
+    } else {
+        console.error('Функция showEditModal не найдена');
+        alert('Ошибка: функция редактирования не загружена');
+    }
+}
+
+// Функция для удаления вопроса из списка
+async function deleteQuestionFromList(questionId) {
+    if (!confirm('❌ Вы уверены, что хотите удалить этот вопрос?\n\nЭто действие нельзя отменить!')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/questions/${questionId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert('✅ Вопрос успешно удалён!');
+            // Перезагружаем список вопросов
+            applyFilters();
+        } else {
+            alert('❌ Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Ошибка удаления вопроса:', error);
+        alert('❌ Ошибка удаления вопроса');
+    }
+}
+
+// Функция для добавления вопроса со страницы просмотра
+function addQuestionFromBrowse() {
+    // Вызываем функцию добавления вопроса без привязки к PDF
+    addNewQuestion(null, null);
 }
 
 function getTypeLabel(type) {
