@@ -86,3 +86,8 @@ test_output/
 *.pid
 .api.pid
 .web.pid
+
+# Node.js / Playwright
+node_modules/
+test-results/
+playwright-report/
