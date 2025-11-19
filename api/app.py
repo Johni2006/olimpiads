@@ -4260,6 +4260,251 @@ def manage_ai_prompts(quiz_id):
             }), 500
 
 
+# ==================== КАСТОМНЫЕ URL И КОНТРОЛЬ ДОСТУПА ====================
+
+@app.route('/api/quizzes/slug/<slug>', methods=['GET'])
+def get_quiz_by_slug(slug):
+    """Получить викторину по кастомному slug"""
+    try:
+        quiz = db.get_quiz_by_slug(slug)
+
+        if not quiz:
+            return jsonify({
+                "success": False,
+                "error": "Викторина не найдена"
+            }), 404
+
+        # Скрываем правильные ответы для студентов
+        if not quiz.get('show_correct_answers'):
+            for question in quiz.get('questions', []):
+                for option in question.get('options', []):
+                    option['is_correct'] = None
+
+        return jsonify({
+            "success": True,
+            "quiz": quiz
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/quizzes/<int:quiz_id>/custom-slug', methods=['PUT'])
+def set_custom_slug(quiz_id):
+    """Установить кастомный URL для викторины"""
+    try:
+        data = request.get_json()
+
+        if not data or 'custom_slug' not in data:
+            return jsonify({
+                "success": False,
+                "error": "Необходимо указать custom_slug"
+            }), 400
+
+        success = db.set_custom_slug(quiz_id, data['custom_slug'])
+
+        if not success:
+            return jsonify({
+                "success": False,
+                "error": "Не удалось установить slug. Возможно, он уже занят или содержит недопустимые символы"
+            }), 400
+
+        return jsonify({
+            "success": True,
+            "message": "Custom slug установлен"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/quizzes/<int:quiz_id>/access-control', methods=['GET', 'POST'])
+def manage_access_control(quiz_id):
+    """
+    GET: Получить белый список доступа
+    POST: Добавить запись в белый список
+    """
+    if request.method == 'GET':
+        try:
+            access_list = db.get_access_control_list(quiz_id)
+
+            return jsonify({
+                "success": True,
+                "access_list": access_list
+            })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    else:  # POST
+        try:
+            data = request.get_json()
+
+            if not data or 'entry_type' not in data or 'entry_value' not in data:
+                return jsonify({
+                    "success": False,
+                    "error": "Необходимо указать entry_type и entry_value"
+                }), 400
+
+            if data['entry_type'] not in ['email', 'domain']:
+                return jsonify({
+                    "success": False,
+                    "error": "entry_type должен быть 'email' или 'domain'"
+                }), 400
+
+            success = db.add_access_control_entry(
+                quiz_id=quiz_id,
+                entry_type=data['entry_type'],
+                entry_value=data['entry_value'],
+                created_by=data.get('created_by'),
+                notes=data.get('notes')
+            )
+
+            if not success:
+                return jsonify({
+                    "success": False,
+                    "error": "Не удалось добавить запись. Возможно, она уже существует"
+                }), 400
+
+            # Возвращаем обновленный список
+            access_list = db.get_access_control_list(quiz_id)
+
+            return jsonify({
+                "success": True,
+                "message": "Запись добавлена в белый список",
+                "access_list": access_list
+            }), 201
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+
+@app.route('/api/quizzes/<int:quiz_id>/access-control/<int:entry_id>', methods=['DELETE'])
+def delete_access_control_entry(quiz_id, entry_id):
+    """Удалить запись из белого списка"""
+    try:
+        success = db.remove_access_control_entry(entry_id)
+
+        if not success:
+            return jsonify({
+                "success": False,
+                "error": "Запись не найдена"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Запись удалена из белого списка"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/quizzes/<int:quiz_id>/check-access', methods=['POST'])
+def check_quiz_access(quiz_id):
+    """Проверить доступ к викторине по email"""
+    try:
+        data = request.get_json()
+
+        if not data or 'email' not in data:
+            return jsonify({
+                "success": False,
+                "error": "Необходимо указать email"
+            }), 400
+
+        has_access = db.check_email_access(quiz_id, data['email'])
+
+        return jsonify({
+            "success": True,
+            "has_access": has_access
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/quizzes/<slug>/start-by-slug', methods=['POST'])
+def start_quiz_by_slug(slug):
+    """Начать прохождение викторины по slug"""
+    try:
+        data = request.get_json()
+
+        if not data or not data.get('student_name'):
+            return jsonify({
+                "success": False,
+                "error": "Необходимо указать student_name"
+            }), 400
+
+        # Получаем викторину по slug
+        quiz = db.get_quiz_by_slug(slug)
+
+        if not quiz:
+            return jsonify({
+                "success": False,
+                "error": "Викторина не найдена"
+            }), 404
+
+        # Проверяем доступ по email, если требуется
+        if quiz.get('require_email_validation'):
+            if not data.get('student_email'):
+                return jsonify({
+                    "success": False,
+                    "error": "Для этой викторины необходимо указать email"
+                }), 400
+
+            has_access = db.check_email_access(quiz['id'], data['student_email'])
+
+            if not has_access:
+                return jsonify({
+                    "success": False,
+                    "error": "Доступ к викторине запрещен. Ваш email не в белом списке."
+                }), 403
+
+        # Создаем попытку
+        attempt = db.start_quiz_attempt(
+            quiz_id=quiz['id'],
+            student_name=data['student_name'],
+            student_email=data.get('student_email'),
+            ip_address=request.remote_addr
+        )
+
+        if not attempt:
+            return jsonify({
+                "success": False,
+                "error": "Не удалось начать викторину"
+            }), 400
+
+        return jsonify({
+            "success": True,
+            "attempt": attempt,
+            "session_id": attempt['unique_session_id']
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 if __name__ == '__main__':
     print("🚀 Запуск API сервера...")
     print("📍 API доступен по адресу: http://localhost:5001")

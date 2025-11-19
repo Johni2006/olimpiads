@@ -186,7 +186,7 @@ class QuizManager:
                 'title', 'description', 'is_active', 'status', 'time_limit',
                 'show_correct_answers', 'allow_review', 'pass_threshold',
                 'shuffle_questions', 'shuffle_options', 'max_attempts',
-                'available_from', 'available_until'
+                'available_from', 'available_until', 'custom_slug', 'require_email_validation'
             ]
 
             for field in allowed_fields:
@@ -365,6 +365,14 @@ class QuizManager:
 
         if not quiz or not quiz.get('is_active'):
             return None
+
+        # Проверяем доступ по email, если требуется
+        if quiz.get('require_email_validation'):
+            if not student_email:
+                return None  # Email обязателен для этой викторины
+
+            if not self.check_email_access(quiz['id'], student_email):
+                return None  # Доступ запрещен
 
         # Проверяем доступность по времени
         now = datetime.now()
@@ -648,3 +656,162 @@ class QuizManager:
             attempt['answers'] = [dict(row) for row in cursor.fetchall()]
 
             return attempt
+
+    # ==================== КАСТОМНЫЕ URL И КОНТРОЛЬ ДОСТУПА ====================
+
+    def get_quiz_by_slug(self, slug: str) -> Optional[Dict]:
+        """Получить викторину по custom_slug"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM quizzes WHERE custom_slug = ?", (slug,))
+            row = cursor.fetchone()
+            if row:
+                return self.get_quiz(quiz_id=row['id'])
+            return None
+
+    def set_custom_slug(self, quiz_id: int, custom_slug: str) -> bool:
+        """
+        Установить кастомный URL для викторины
+
+        Args:
+            quiz_id: ID викторины
+            custom_slug: Кастомный slug (например, 'olimpiada-2025')
+
+        Returns:
+            True если успешно установлен
+        """
+        import re
+
+        # Валидация slug: только буквы, цифры, дефисы
+        if not re.match(r'^[a-zA-Z0-9_-]+$', custom_slug):
+            return False
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            try:
+                cursor.execute("""
+                    UPDATE quizzes SET custom_slug = ? WHERE id = ?
+                """, (custom_slug, quiz_id))
+                return cursor.rowcount > 0
+            except:
+                # Slug уже занят
+                return False
+
+    def add_access_control_entry(
+        self,
+        quiz_id: int,
+        entry_type: str,
+        entry_value: str,
+        created_by: str = None,
+        notes: str = None
+    ) -> bool:
+        """
+        Добавить запись в белый список доступа
+
+        Args:
+            quiz_id: ID викторины
+            entry_type: 'email' или 'domain'
+            entry_value: email адрес или домен (например @school.ru)
+            created_by: Кто добавил
+            notes: Примечания
+
+        Returns:
+            True если успешно добавлено
+        """
+        if entry_type not in ['email', 'domain']:
+            return False
+
+        # Валидация entry_value
+        if entry_type == 'domain' and not entry_value.startswith('@'):
+            entry_value = '@' + entry_value
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            try:
+                cursor.execute("""
+                    INSERT INTO quiz_access_control (
+                        quiz_id, entry_type, entry_value, created_by, notes
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                """, (quiz_id, entry_type, entry_value, created_by, notes))
+                return True
+            except:
+                # Запись уже существует
+                return False
+
+    def remove_access_control_entry(self, entry_id: int) -> bool:
+        """Удалить запись из белого списка"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM quiz_access_control WHERE id = ?", (entry_id,))
+            return cursor.rowcount > 0
+
+    def get_access_control_list(self, quiz_id: int) -> List[Dict]:
+        """Получить весь белый список для викторины"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM quiz_access_control
+                WHERE quiz_id = ?
+                ORDER BY entry_type, entry_value
+            """, (quiz_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def check_email_access(self, quiz_id: int, email: str) -> bool:
+        """
+        Проверить, имеет ли email доступ к викторине
+
+        Args:
+            quiz_id: ID викторины
+            email: Email адрес для проверки
+
+        Returns:
+            True если доступ разрешен
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем, требуется ли валидация email для этой викторины
+            cursor.execute("""
+                SELECT require_email_validation FROM quizzes WHERE id = ?
+            """, (quiz_id,))
+            quiz = cursor.fetchone()
+
+            if not quiz or not quiz['require_email_validation']:
+                # Валидация не требуется
+                return True
+
+            # Проверяем наличие записей в белом списке
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM quiz_access_control WHERE quiz_id = ?
+            """, (quiz_id,))
+
+            if cursor.fetchone()['count'] == 0:
+                # Белый список пуст - доступ разрешен всем
+                return True
+
+            email_lower = email.lower().strip()
+
+            # Проверяем точное совпадение email
+            cursor.execute("""
+                SELECT id FROM quiz_access_control
+                WHERE quiz_id = ? AND entry_type = 'email' AND LOWER(entry_value) = ?
+            """, (quiz_id, email_lower))
+
+            if cursor.fetchone():
+                return True
+
+            # Проверяем домен
+            if '@' in email_lower:
+                domain = '@' + email_lower.split('@')[1]
+                cursor.execute("""
+                    SELECT id FROM quiz_access_control
+                    WHERE quiz_id = ? AND entry_type = 'domain' AND LOWER(entry_value) = ?
+                """, (quiz_id, domain))
+
+                if cursor.fetchone():
+                    return True
+
+            return False
