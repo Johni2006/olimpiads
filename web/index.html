@@ -827,30 +827,11 @@
                         </div>
                     </div>
 
-                    <h4 style="margin-top: 20px;">Выбор вопросов:</h4>
-
-                    <div class="quiz-creation-methods">
-                        <button onclick="showPdfSelector()" class="btn-secondary">📄 Из PDF файла</button>
-                        <button onclick="showManualSelector()" class="btn-secondary">✏️ Выбрать вручную</button>
-                    </div>
-
-                    <!-- Выбор из PDF -->
-                    <div id="pdf-selector" style="display: none; margin-top: 20px;">
-                        <h4>Выберите PDF файл:</h4>
-                        <select id="pdf-select" onchange="loadQuestionsFromPdf()">
-                            <option value="">-- Выберите PDF --</option>
-                        </select>
-                        <div id="pdf-questions-preview" style="margin-top: 15px;">
-                            <!-- Превью вопросов из PDF -->
-                        </div>
-                    </div>
-
-                    <!-- Ручной выбор -->
-                    <div id="manual-selector" style="display: none; margin-top: 20px;">
-                        <h4>Выбранные вопросы:</h4>
-                        <div id="selected-questions" class="selected-questions-list">
-                            <p style="color: #999;">Перейдите на вкладку "Просмотр вопросов", найдите нужные вопросы и добавьте их в викторину.</p>
-                        </div>
+                    <div style="margin-top: 20px; padding: 15px; background: #f0f8ff; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <p style="margin: 0; color: #555;">
+                            💡 <strong>Совет:</strong> После создания викторины перейдите на вкладку "Просмотр вопросов",
+                            выберите нужную викторину из списка и добавьте в неё вопросы.
+                        </p>
                     </div>
 
                     <div style="margin-top: 20px;">

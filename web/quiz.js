@@ -58,11 +58,22 @@ function displayQuizzes(quizzes) {
         return;
     }
 
-    container.innerHTML = quizzes.map(quiz => `
-        <div class="question-card" style="margin-bottom: 15px;">
+    container.innerHTML = quizzes.map(quiz => {
+        const isDraft = quiz.status === 'draft';
+        const statusColor = isDraft ? '#4caf50' : '#9e9e9e';
+        const statusText = isDraft ? '🟢 Черновик' : '🔴 Готова';
+        const statusButtonText = isDraft ? '✅ Завершить' : '📝 В черновик';
+
+        return `
+        <div class="question-card" style="margin-bottom: 15px; border-left: 4px solid ${statusColor};">
             <div class="question-header">
                 <div>
-                    <h3 style="margin-bottom: 5px;">${quiz.title}</h3>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                        <h3 style="margin: 0;">${quiz.title}</h3>
+                        <span style="padding: 4px 12px; background: ${statusColor}; color: white; border-radius: 12px; font-size: 0.85em; font-weight: 600;">
+                            ${statusText}
+                        </span>
+                    </div>
                     <p style="color: #666; margin-bottom: 10px;">${quiz.description || ''}</p>
                     <div class="question-meta">
                         <span class="tag">Вопросов: ${quiz.question_count || 0}</span>
@@ -75,9 +86,12 @@ function displayQuizzes(quizzes) {
                     <div style="font-size: 1.2em; font-weight: bold; color: #667eea;">
                         Код: ${quiz.unique_code}
                     </div>
-                    <div style="display: flex; gap: 10px;">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end;">
+                        <button onclick="toggleQuizStatus(${quiz.id}, '${isDraft ? 'ready' : 'draft'}')" class="btn-secondary" style="padding: 8px 15px; background: ${statusColor};">
+                            ${statusButtonText}
+                        </button>
                         <button onclick="copyQuizLink('${quiz.unique_code}')" class="btn-secondary" style="padding: 8px 15px;">
-                            📋 Копировать ссылку
+                            📋 Ссылка
                         </button>
                         <button onclick="viewQuizResults(${quiz.id})" class="btn-secondary" style="padding: 8px 15px;">
                             📊 Результаты
@@ -89,7 +103,8 @@ function displayQuizzes(quizzes) {
                 </div>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // ==================== СОЗДАНИЕ ВИКТОРИНЫ ====================
@@ -187,21 +202,7 @@ async function createQuiz() {
         return;
     }
 
-    // Определяем список вопросов
-    let questionIds = [];
-
-    if (pdfQuestions.length > 0) {
-        // Из PDF
-        questionIds = pdfQuestions.map(q => q.id);
-    } else if (selectedQuestions.length > 0) {
-        // Ручной выбор
-        questionIds = selectedQuestions;
-    } else {
-        alert('❌ Добавьте хотя бы один вопрос в викторину');
-        return;
-    }
-
-    // Создаем викторину через API
+    // Создаем викторину через API (без вопросов - их добавим потом)
     try {
         const response = await fetch(`${API_URL}/quizzes`, {
             method: 'POST',
@@ -212,32 +213,32 @@ async function createQuiz() {
                 title: title,
                 description: description,
                 created_by: creator || 'Учитель',
-                question_ids: questionIds,
                 max_attempts: maxAttempts,
                 show_correct_answers: false,
                 allow_review: true,
                 pass_threshold: 0.0,
                 shuffle_questions: false,
-                shuffle_options: false
+                shuffle_options: false,
+                status: 'draft'
             })
         });
 
         const data = await response.json();
 
         if (data.success) {
-            alert(`✅ Викторина создана!\n\nКод доступа: ${data.quiz.unique_code}\n\nСсылка: ${window.location.origin}/quiz.html?code=${data.quiz.unique_code}`);
+            alert(`✅ Викторина создана!\n\nТеперь перейдите на вкладку "Просмотр вопросов" и добавьте вопросы в викторину.`);
 
             // Очищаем форму
             document.getElementById('quiz-title').value = '';
             document.getElementById('quiz-description').value = '';
-            selectedQuestions = [];
-            pdfQuestions = [];
-            document.getElementById('pdf-select').value = '';
-            document.getElementById('pdf-questions-preview').innerHTML = '';
-            updateSelectedQuestionsDisplay();
 
             // Перезагружаем список викторин
             loadQuizzes();
+
+            // Обновляем выпадающий список викторин на вкладке вопросов
+            if (typeof loadDraftQuizzesForSelector === 'function') {
+                loadDraftQuizzesForSelector();
+            }
         } else {
             alert(`❌ Ошибка создания викторины: ${data.error}`);
         }
@@ -338,6 +339,42 @@ function displayQuizResultsModal(attempts) {
     `;
 
     modal.style.display = 'flex';
+}
+
+// Переключить статус викторины
+async function toggleQuizStatus(quizId, newStatus) {
+    const statusText = newStatus === 'ready' ? 'завершенной' : 'черновиком';
+    const confirmMessage = newStatus === 'ready'
+        ? 'Вы уверены, что хотите завершить викторину?\n\nПосле этого вы не сможете добавлять или удалять вопросы.'
+        : 'Вернуть викторину в статус черновика?\n\nВы снова сможете редактировать вопросы.';
+
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/quizzes/${quizId}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                status: newStatus
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`✅ Викторина теперь является ${statusText}`);
+            loadQuizzes();
+        } else {
+            alert(`❌ Ошибка: ${data.error}`);
+        }
+    } catch (error) {
+        console.error('Ошибка изменения статуса викторины:', error);
+        alert('❌ Ошибка изменения статуса викторины');
+    }
 }
 
 // Удалить викторину

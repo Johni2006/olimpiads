@@ -562,18 +562,40 @@ def quizzes():
         try:
             created_by = request.args.get('created_by')
             is_active = request.args.get('is_active')
+            status = request.args.get('status')  # draft или ready
             limit = request.args.get('limit', default=100, type=int)
             offset = request.args.get('offset', default=0, type=int)
 
             if is_active is not None:
                 is_active = is_active.lower() == 'true'
 
-            quizzes = db.get_all_quizzes(
-                created_by=created_by,
-                is_active=is_active,
-                limit=limit,
-                offset=offset
-            )
+            # Если передан status, фильтруем по нему
+            if status:
+                with db.get_connection() as conn:
+                    cursor = conn.cursor()
+                    query = "SELECT * FROM quiz_stats WHERE status = ?"
+                    params = [status]
+
+                    if created_by:
+                        query += " AND created_by = ?"
+                        params.append(created_by)
+
+                    if is_active is not None:
+                        query += " AND is_active = ?"
+                        params.append(1 if is_active else 0)
+
+                    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+                    params.extend([limit, offset])
+
+                    cursor.execute(query, params)
+                    quizzes = [dict(row) for row in cursor.fetchall()]
+            else:
+                quizzes = db.get_all_quizzes(
+                    created_by=created_by,
+                    is_active=is_active,
+                    limit=limit,
+                    offset=offset
+                )
 
             return jsonify({
                 "success": True,
@@ -904,6 +926,127 @@ def attempt_details(session_id):
             "success": True,
             "attempt": attempt
         })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/quizzes/<int:quiz_id>/questions', methods=['POST', 'DELETE'])
+def quiz_questions(quiz_id):
+    """
+    POST: Добавить вопрос в викторину
+    DELETE: Удалить вопрос из викторины
+    """
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+
+            if not data or not data.get('question_id'):
+                return jsonify({
+                    "success": False,
+                    "error": "Необходимо указать question_id"
+                }), 400
+
+            question_id = data['question_id']
+
+            # Добавляем вопрос в викторину
+            success = db.add_question_to_quiz(quiz_id, question_id)
+
+            if success:
+                # Получаем обновленную викторину
+                quiz = db.get_quiz(quiz_id)
+                return jsonify({
+                    "success": True,
+                    "message": "Вопрос добавлен в викторину",
+                    "quiz": quiz
+                })
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "Не удалось добавить вопрос (викторина не найдена, имеет статус ready, или вопрос уже добавлен)"
+                }), 400
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    elif request.method == 'DELETE':
+        try:
+            data = request.get_json()
+
+            if not data or not data.get('question_id'):
+                return jsonify({
+                    "success": False,
+                    "error": "Необходимо указать question_id"
+                }), 400
+
+            question_id = data['question_id']
+
+            # Удаляем вопрос из викторины
+            success = db.remove_question_from_quiz(quiz_id, question_id)
+
+            if success:
+                # Получаем обновленную викторину
+                quiz = db.get_quiz(quiz_id)
+                return jsonify({
+                    "success": True,
+                    "message": "Вопрос удален из викторины",
+                    "quiz": quiz
+                })
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "Не удалось удалить вопрос"
+                }), 400
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+
+@app.route('/api/quizzes/<int:quiz_id>/status', methods=['PATCH'])
+def quiz_status(quiz_id):
+    """Изменить статус викторины"""
+    try:
+        data = request.get_json()
+
+        if not data or not data.get('status'):
+            return jsonify({
+                "success": False,
+                "error": "Необходимо указать status"
+            }), 400
+
+        status = data['status']
+
+        if status not in ['draft', 'ready']:
+            return jsonify({
+                "success": False,
+                "error": "Статус должен быть 'draft' или 'ready'"
+            }), 400
+
+        # Обновляем статус
+        success = db.update_quiz_status(quiz_id, status)
+
+        if success:
+            # Получаем обновленную викторину
+            quiz = db.get_quiz(quiz_id)
+            return jsonify({
+                "success": True,
+                "message": f"Статус викторины изменен на '{status}'",
+                "quiz": quiz
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Не удалось обновить статус"
+            }), 400
 
     except Exception as e:
         return jsonify({

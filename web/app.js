@@ -2083,6 +2083,131 @@ async function loadDefaultTeacher() {
 }
 
 // =========================
+// Работа с викторинами
+// =========================
+
+let rememberedQuizId = null; // Запомненная викторина для быстрого добавления
+
+// Показать модальное окно выбора викторины
+async function addQuestionToQuiz(questionId) {
+    // Если викторина уже запомнена, добавляем сразу
+    if (rememberedQuizId) {
+        const confirm = window.confirm('Добавить вопрос в запомненную викторину?');
+        if (confirm) {
+            await addQuestionToSelectedQuiz(questionId, rememberedQuizId);
+            return;
+        }
+        // Если отказался, показываем список
+        rememberedQuizId = null;
+    }
+
+    try {
+        // Загружаем список draft викторин
+        const response = await fetch(`${API_URL}/quizzes?status=draft`);
+        const data = await response.json();
+
+        if (!data.success || data.quizzes.length === 0) {
+            alert('❌ Нет доступных викторин для добавления.\n\nСоздайте новую викторину на вкладке "Викторины" или переведите существующие викторины в статус "Черновик".');
+            return;
+        }
+
+        // Создаем HTML для модального окна
+        const quizzesList = data.quizzes.map(quiz => `
+            <div class="quiz-select-item" onclick="selectQuizForQuestion(${questionId}, ${quiz.id}, '${quiz.title}')" style="
+                padding: 15px;
+                margin-bottom: 10px;
+                background: #f5f5f5;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.2s;
+            " onmouseover="this.style.background='#e0e0e0'" onmouseout="this.style.background='#f5f5f5'">
+                <div style="font-weight: 600; margin-bottom: 5px;">${quiz.title}</div>
+                <div style="color: #666; font-size: 0.9em;">
+                    ${quiz.description || 'Без описания'} •
+                    ${quiz.question_count || 0} вопросов
+                </div>
+            </div>
+        `).join('');
+
+        const modal = document.getElementById('edit-modal');
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2>Выберите викторину</h2>
+                    <button class="close-btn" onclick="closeEditModal()">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p style="margin-bottom: 15px; color: #666;">
+                        Выберите викторину, в которую хотите добавить вопрос:
+                    </p>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        ${quizzesList}
+                    </div>
+                    <div style="margin-top: 20px; padding: 15px; background: #f0f8ff; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="remember-quiz-choice" style="margin-right: 10px;">
+                            <span>Запомнить выбор для следующих вопросов</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        `;
+        modal.style.display = 'flex';
+    } catch (error) {
+        console.error('Ошибка загрузки викторин:', error);
+        alert('❌ Ошибка загрузки списка викторин');
+    }
+}
+
+// Выбрать викторину и добавить вопрос
+async function selectQuizForQuestion(questionId, quizId, quizTitle) {
+    // Проверяем чекбокс "запомнить выбор"
+    const rememberCheckbox = document.getElementById('remember-quiz-choice');
+    if (rememberCheckbox && rememberCheckbox.checked) {
+        rememberedQuizId = quizId;
+    }
+
+    await addQuestionToSelectedQuiz(questionId, quizId, quizTitle);
+    closeEditModal();
+}
+
+// Добавить вопрос в выбранную викторину
+async function addQuestionToSelectedQuiz(questionId, quizId, quizTitle = '') {
+    try {
+        const response = await fetch(`${API_URL}/quizzes/${quizId}/questions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                question_id: questionId
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`✅ Вопрос добавлен в викторину${quizTitle ? ': ' + quizTitle : ''}!`);
+        } else {
+            alert(`❌ Ошибка: ${data.error}`);
+            // Если викторина не в статусе draft, сбрасываем запомненный выбор
+            if (data.error.includes('ready')) {
+                rememberedQuizId = null;
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка добавления вопроса:', error);
+        alert('❌ Ошибка добавления вопроса в викторину');
+    }
+}
+
+// Сбросить запомненную викторину
+function resetRememberedQuiz() {
+    rememberedQuizId = null;
+    alert('✅ Запомненная викторина сброшена');
+}
+
+// =========================
 // Запуск при загрузке
 // =========================
 

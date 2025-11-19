@@ -24,6 +24,7 @@ class QuizManager:
         description: str = None,
         created_by: str = None,
         question_ids: List[int] = None,
+        status: str = 'draft',
         time_limit: int = None,
         show_correct_answers: bool = False,
         allow_review: bool = True,
@@ -70,14 +71,14 @@ class QuizManager:
             # Создаем викторину
             cursor.execute("""
                 INSERT INTO quizzes (
-                    title, description, unique_code, created_by,
+                    title, description, unique_code, created_by, status,
                     time_limit, show_correct_answers, allow_review, pass_threshold,
                     shuffle_questions, shuffle_options, max_attempts,
                     available_from, available_until
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                title, description, unique_code, created_by,
+                title, description, unique_code, created_by, status,
                 time_limit, show_correct_answers, allow_review, pass_threshold,
                 shuffle_questions, shuffle_options, max_attempts,
                 available_from, available_until
@@ -182,7 +183,7 @@ class QuizManager:
             params = []
 
             allowed_fields = [
-                'title', 'description', 'is_active', 'time_limit',
+                'title', 'description', 'is_active', 'status', 'time_limit',
                 'show_correct_answers', 'allow_review', 'pass_threshold',
                 'shuffle_questions', 'shuffle_options', 'max_attempts',
                 'available_from', 'available_until'
@@ -217,6 +218,104 @@ class QuizManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM quizzes WHERE id = ?", (quiz_id,))
+            return cursor.rowcount > 0
+
+    def add_question_to_quiz(self, quiz_id: int, question_id: int) -> bool:
+        """
+        Добавить вопрос в викторину
+
+        Args:
+            quiz_id: ID викторины
+            question_id: ID вопроса
+
+        Returns:
+            True если вопрос добавлен успешно
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем, что викторина существует и имеет статус 'draft'
+            cursor.execute("SELECT status FROM quizzes WHERE id = ?", (quiz_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+
+            quiz_status = row['status']
+            if quiz_status != 'draft':
+                return False  # Нельзя добавлять вопросы в готовую викторину
+
+            # Проверяем, что вопрос не добавлен уже
+            cursor.execute("""
+                SELECT id FROM quiz_questions
+                WHERE quiz_id = ? AND question_id = ?
+            """, (quiz_id, question_id))
+
+            if cursor.fetchone():
+                return False  # Вопрос уже добавлен
+
+            # Получаем максимальную позицию
+            cursor.execute("""
+                SELECT MAX(position) as max_pos FROM quiz_questions WHERE quiz_id = ?
+            """, (quiz_id,))
+
+            result = cursor.fetchone()
+            next_position = (result['max_pos'] or -1) + 1
+
+            # Добавляем вопрос
+            cursor.execute("""
+                INSERT INTO quiz_questions (quiz_id, question_id, position)
+                VALUES (?, ?, ?)
+            """, (quiz_id, question_id, next_position))
+
+            return cursor.rowcount > 0
+
+    def remove_question_from_quiz(self, quiz_id: int, question_id: int) -> bool:
+        """
+        Удалить вопрос из викторины
+
+        Args:
+            quiz_id: ID викторины
+            question_id: ID вопроса
+
+        Returns:
+            True если вопрос удален успешно
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем, что викторина имеет статус 'draft'
+            cursor.execute("SELECT status FROM quizzes WHERE id = ?", (quiz_id,))
+            row = cursor.fetchone()
+            if not row or row['status'] != 'draft':
+                return False
+
+            # Удаляем вопрос
+            cursor.execute("""
+                DELETE FROM quiz_questions
+                WHERE quiz_id = ? AND question_id = ?
+            """, (quiz_id, question_id))
+
+            return cursor.rowcount > 0
+
+    def update_quiz_status(self, quiz_id: int, status: str) -> bool:
+        """
+        Изменить статус викторины
+
+        Args:
+            quiz_id: ID викторины
+            status: Новый статус ('draft' или 'ready')
+
+        Returns:
+            True если статус обновлен успешно
+        """
+        if status not in ['draft', 'ready']:
+            return False
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE quizzes SET status = ? WHERE id = ?
+            """, (status, quiz_id))
             return cursor.rowcount > 0
 
     def _get_quiz_questions(self, quiz_id: int) -> List[Dict]:

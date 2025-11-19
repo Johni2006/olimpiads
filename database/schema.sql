@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS quizzes (
     created_by VARCHAR(200),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT 1,
+    status VARCHAR(20) DEFAULT 'draft', -- draft или ready
     time_limit INTEGER,
     show_correct_answers BOOLEAN DEFAULT 0,
     allow_review BOOLEAN DEFAULT 1,
@@ -249,6 +250,9 @@ SELECT
     q.unique_code,
     q.created_at,
     q.is_active,
+    q.status,
+    q.description,
+    q.created_by,
     COUNT(DISTINCT qa.id) as total_attempts,
     COUNT(DISTINCT CASE WHEN qa.completed_at IS NOT NULL THEN qa.id END) as completed_attempts,
     AVG(CASE WHEN qa.completed_at IS NOT NULL THEN qa.score END) as avg_score,

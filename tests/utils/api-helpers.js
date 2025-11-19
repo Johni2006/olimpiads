@@ -219,7 +219,8 @@ async function updateQuestion(request, questionId, updates) {
     throw new Error(`Failed to update question: ${JSON.stringify(response.data)}`);
   }
 
-  return response.data.question || response.data;
+  // После обновления получаем обновленный вопрос
+  return await getQuestion(request, questionId);
 }
 
 /**
@@ -239,7 +240,8 @@ async function updateQuiz(request, quizId, updates) {
     throw new Error(`Failed to update quiz: ${JSON.stringify(response.data)}`);
   }
 
-  return response.data.quiz || response.data;
+  // После обновления получаем обновленную викторину
+  return await getQuiz(request, quizId);
 }
 
 /**
@@ -357,7 +359,8 @@ async function completeQuizAttempt(request, sessionId) {
     throw new Error(`Failed to complete quiz: ${JSON.stringify(response.data)}`);
   }
 
-  return response.data;
+  // API возвращает результаты в поле results
+  return response.data.results || response.data;
 }
 
 module.exports = {
