@@ -10,11 +10,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from database.db_manager import DatabaseManager
+from dotenv import load_dotenv
 import json
 import os
 import subprocess
 import sqlite3
 from datetime import datetime
+
+# Загружаем переменные окружения из .env файла
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Разрешаем CORS для работы с фронтендом
@@ -3005,6 +3009,1075 @@ def get_test_status():
         }), 500
 
 
+# ==================== ФАЗА 3: DASHBOARD УЧЕНИКОВ ====================
+
+@app.route('/api/students', methods=['GET'])
+def get_students():
+    """
+    Получить список всех учеников с фильтрацией и сортировкой
+
+    Query params:
+        - search: поиск по имени или email
+        - sort_by: поле для сортировки (name, last_activity, avg_score, quizzes_taken)
+        - sort_order: направление сортировки (asc/desc)
+        - limit: количество результатов (по умолчанию 100)
+        - offset: смещение для пагинации
+    """
+    try:
+        search = request.args.get('search', '').strip()
+        sort_by = request.args.get('sort_by', 'last_activity')
+        sort_order = request.args.get('sort_order', 'desc')
+        limit = request.args.get('limit', default=100, type=int)
+        offset = request.args.get('offset', default=0, type=int)
+
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Базовый запрос из представления student_stats
+            query = "SELECT * FROM student_stats WHERE 1=1"
+            params = []
+
+            # Поиск по имени или email
+            if search:
+                query += " AND (student_name LIKE ? OR student_email LIKE ?)"
+                search_pattern = f"%{search}%"
+                params.extend([search_pattern, search_pattern])
+
+            # Сортировка
+            valid_sort_fields = ['student_name', 'last_activity', 'avg_score', 'quizzes_taken', 'total_attempts']
+            if sort_by in valid_sort_fields:
+                query += f" ORDER BY {sort_by}"
+                if sort_order.lower() == 'desc':
+                    query += " DESC"
+                else:
+                    query += " ASC"
+            else:
+                query += " ORDER BY last_activity DESC"
+
+            # Пагинация
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+            cursor.execute(query, params)
+            students = [dict(row) for row in cursor.fetchall()]
+
+            # Получаем общее количество учеников (для пагинации)
+            count_query = "SELECT COUNT(*) as total FROM student_stats WHERE 1=1"
+            count_params = []
+            if search:
+                count_query += " AND (student_name LIKE ? OR student_email LIKE ?)"
+                search_pattern = f"%{search}%"
+                count_params.extend([search_pattern, search_pattern])
+
+            cursor.execute(count_query, count_params)
+            total = cursor.fetchone()['total']
+
+            return jsonify({
+                "success": True,
+                "students": students,
+                "total": total,
+                "limit": limit,
+                "offset": offset
+            })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/students/<student_name>', methods=['GET'])
+def get_student_profile(student_name):
+    """
+    Получить профиль ученика со статистикой
+    """
+    try:
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Получаем статистику ученика
+            cursor.execute("""
+                SELECT * FROM student_stats WHERE student_name = ?
+            """, (student_name,))
+
+            profile = cursor.fetchone()
+            if not profile:
+                return jsonify({
+                    "success": False,
+                    "error": "Ученик не найден"
+                }), 404
+
+            profile = dict(profile)
+
+            # Получаем все попытки ученика с деталями
+            cursor.execute("""
+                SELECT * FROM attempt_details
+                WHERE student_name = ?
+                ORDER BY started_at DESC
+            """, (student_name,))
+
+            attempts = [dict(row) for row in cursor.fetchall()]
+            profile['attempts'] = attempts
+
+            return jsonify({
+                "success": True,
+                "profile": profile
+            })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/students/<student_name>/attempts', methods=['GET'])
+def get_student_attempts(student_name):
+    """
+    Получить все попытки ученика с фильтрацией
+
+    Query params:
+        - quiz_id: фильтр по викторине
+        - completed_only: только завершенные (true/false)
+        - limit: количество результатов
+        - offset: смещение для пагинации
+    """
+    try:
+        quiz_id = request.args.get('quiz_id', type=int)
+        completed_only = request.args.get('completed_only', 'false').lower() == 'true'
+        limit = request.args.get('limit', default=50, type=int)
+        offset = request.args.get('offset', default=0, type=int)
+
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            query = "SELECT * FROM attempt_details WHERE student_name = ?"
+            params = [student_name]
+
+            if quiz_id:
+                query += " AND quiz_id = ?"
+                params.append(quiz_id)
+
+            if completed_only:
+                query += " AND completed_at IS NOT NULL"
+
+            query += " ORDER BY started_at DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+            cursor.execute(query, params)
+            attempts = [dict(row) for row in cursor.fetchall()]
+
+            return jsonify({
+                "success": True,
+                "attempts": attempts,
+                "student_name": student_name
+            })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# ==================== ЗАМЕТКИ ПРЕПОДАВАТЕЛЯ ====================
+
+@app.route('/api/attempts/<int:attempt_id>/notes', methods=['GET', 'POST'])
+def manage_attempt_notes(attempt_id):
+    """
+    GET: Получить все заметки для попытки
+    POST: Добавить новую заметку
+    """
+    if request.method == 'GET':
+        try:
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT * FROM teacher_notes
+                    WHERE attempt_id = ?
+                    ORDER BY created_at DESC
+                """, (attempt_id,))
+
+                notes = [dict(row) for row in cursor.fetchall()]
+
+                return jsonify({
+                    "success": True,
+                    "notes": notes
+                })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    else:  # POST
+        try:
+            data = request.get_json()
+
+            if not data or 'note_text' not in data:
+                return jsonify({
+                    "success": False,
+                    "error": "Текст заметки обязателен"
+                }), 400
+
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Проверяем существование попытки
+                cursor.execute("SELECT id FROM quiz_attempts WHERE id = ?", (attempt_id,))
+                if not cursor.fetchone():
+                    return jsonify({
+                        "success": False,
+                        "error": "Попытка не найдена"
+                    }), 404
+
+                # Добавляем заметку
+                cursor.execute("""
+                    INSERT INTO teacher_notes (
+                        attempt_id, teacher_name, note_text, note_type, is_private
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    attempt_id,
+                    data.get('teacher_name'),
+                    data['note_text'],
+                    data.get('note_type', 'general'),
+                    data.get('is_private', False)
+                ))
+
+                note_id = cursor.lastrowid
+
+                # Получаем созданную заметку
+                cursor.execute("SELECT * FROM teacher_notes WHERE id = ?", (note_id,))
+                note = dict(cursor.fetchone())
+
+                return jsonify({
+                    "success": True,
+                    "note": note
+                }), 201
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+
+@app.route('/api/notes/<int:note_id>', methods=['PUT', 'DELETE'])
+def manage_note(note_id):
+    """
+    PUT: Обновить заметку
+    DELETE: Удалить заметку
+    """
+    if request.method == 'PUT':
+        try:
+            data = request.get_json()
+
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Проверяем существование заметки
+                cursor.execute("SELECT id FROM teacher_notes WHERE id = ?", (note_id,))
+                if not cursor.fetchone():
+                    return jsonify({
+                        "success": False,
+                        "error": "Заметка не найдена"
+                    }), 404
+
+                # Обновляем заметку
+                update_fields = []
+                params = []
+
+                if 'note_text' in data:
+                    update_fields.append("note_text = ?")
+                    params.append(data['note_text'])
+
+                if 'note_type' in data:
+                    update_fields.append("note_type = ?")
+                    params.append(data['note_type'])
+
+                if 'is_private' in data:
+                    update_fields.append("is_private = ?")
+                    params.append(data['is_private'])
+
+                if update_fields:
+                    update_fields.append("updated_at = CURRENT_TIMESTAMP")
+                    query = f"UPDATE teacher_notes SET {', '.join(update_fields)} WHERE id = ?"
+                    params.append(note_id)
+                    cursor.execute(query, params)
+
+                # Получаем обновленную заметку
+                cursor.execute("SELECT * FROM teacher_notes WHERE id = ?", (note_id,))
+                note = dict(cursor.fetchone())
+
+                return jsonify({
+                    "success": True,
+                    "note": note
+                })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    else:  # DELETE
+        try:
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("DELETE FROM teacher_notes WHERE id = ?", (note_id,))
+
+                if cursor.rowcount == 0:
+                    return jsonify({
+                        "success": False,
+                        "error": "Заметка не найдена"
+                    }), 404
+
+                return jsonify({
+                    "success": True,
+                    "message": "Заметка удалена"
+                })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+
+# ==================== ТЕГИ ПОПЫТОК ====================
+
+@app.route('/api/attempts/<int:attempt_id>/tags', methods=['GET', 'POST'])
+def manage_attempt_tags(attempt_id):
+    """
+    GET: Получить все теги для попытки
+    POST: Добавить новый тег
+    """
+    if request.method == 'GET':
+        try:
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT * FROM attempt_tags
+                    WHERE attempt_id = ?
+                    ORDER BY created_at DESC
+                """, (attempt_id,))
+
+                tags = [dict(row) for row in cursor.fetchall()]
+
+                return jsonify({
+                    "success": True,
+                    "tags": tags
+                })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    else:  # POST
+        try:
+            data = request.get_json()
+
+            if not data or 'tag_name' not in data:
+                return jsonify({
+                    "success": False,
+                    "error": "Название тега обязательно"
+                }), 400
+
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Проверяем существование попытки
+                cursor.execute("SELECT id FROM quiz_attempts WHERE id = ?", (attempt_id,))
+                if not cursor.fetchone():
+                    return jsonify({
+                        "success": False,
+                        "error": "Попытка не найдена"
+                    }), 404
+
+                # Добавляем тег
+                cursor.execute("""
+                    INSERT INTO attempt_tags (attempt_id, tag_name, tag_color, created_by)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    attempt_id,
+                    data['tag_name'],
+                    data.get('tag_color', 'blue'),
+                    data.get('created_by')
+                ))
+
+                tag_id = cursor.lastrowid
+
+                # Получаем созданный тег
+                cursor.execute("SELECT * FROM attempt_tags WHERE id = ?", (tag_id,))
+                tag = dict(cursor.fetchone())
+
+                return jsonify({
+                    "success": True,
+                    "tag": tag
+                }), 201
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+
+@app.route('/api/attempt-tags/<int:tag_id>', methods=['DELETE'])
+def delete_attempt_tag(tag_id):
+    """Удалить тег попытки"""
+    try:
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("DELETE FROM attempt_tags WHERE id = ?", (tag_id,))
+
+            if cursor.rowcount == 0:
+                return jsonify({
+                    "success": False,
+                    "error": "Тег не найден"
+                }), 404
+
+            return jsonify({
+                "success": True,
+                "message": "Тег удален"
+            })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# ==================== СИСТЕМА ПЕРСОНАЛЬНЫХ ПРИГЛАШЕНИЙ ====================
+
+@app.route('/api/quizzes/<int:quiz_id>/invitations', methods=['GET', 'POST'])
+def manage_quiz_invitations(quiz_id):
+    """
+    GET: Получить все приглашения для викторины
+    POST: Создать новое приглашение
+    """
+    if request.method == 'GET':
+        try:
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Проверяем существование викторины
+                cursor.execute("SELECT id FROM quizzes WHERE id = ?", (quiz_id,))
+                if not cursor.fetchone():
+                    return jsonify({
+                        "success": False,
+                        "error": "Викторина не найдена"
+                    }), 404
+
+                # Получаем все приглашения
+                cursor.execute("""
+                    SELECT * FROM invitation_details
+                    WHERE quiz_id = ?
+                    ORDER BY created_at DESC
+                """, (quiz_id,))
+
+                invitations = [dict(row) for row in cursor.fetchall()]
+
+                return jsonify({
+                    "success": True,
+                    "invitations": invitations
+                })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    else:  # POST
+        try:
+            data = request.get_json()
+
+            if not data or 'student_name' not in data:
+                return jsonify({
+                    "success": False,
+                    "error": "Имя студента обязательно"
+                }), 400
+
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Проверяем существование викторины
+                cursor.execute("SELECT id FROM quizzes WHERE id = ?", (quiz_id,))
+                if not cursor.fetchone():
+                    return jsonify({
+                        "success": False,
+                        "error": "Викторина не найдена"
+                    }), 404
+
+                # Генерируем уникальный токен
+                import secrets
+                unique_token = secrets.token_urlsafe(32)
+
+                # Проверяем уникальность токена
+                cursor.execute("SELECT id FROM quiz_invitations WHERE unique_token = ?", (unique_token,))
+                while cursor.fetchone():
+                    unique_token = secrets.token_urlsafe(32)
+                    cursor.execute("SELECT id FROM quiz_invitations WHERE unique_token = ?", (unique_token,))
+
+                # Создаем приглашение
+                cursor.execute("""
+                    INSERT INTO quiz_invitations (
+                        quiz_id, student_name, student_email, unique_token,
+                        expires_at, created_by, notes
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    quiz_id,
+                    data['student_name'],
+                    data.get('student_email'),
+                    unique_token,
+                    data.get('expires_at'),
+                    data.get('created_by'),
+                    data.get('notes')
+                ))
+
+                invitation_id = cursor.lastrowid
+
+                # Получаем созданное приглашение
+                cursor.execute("SELECT * FROM invitation_details WHERE id = ?", (invitation_id,))
+                invitation = dict(cursor.fetchone())
+
+                return jsonify({
+                    "success": True,
+                    "invitation": invitation,
+                    "link": f"{request.host_url}quiz.html?token={unique_token}"
+                }), 201
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+
+@app.route('/api/quizzes/invitations/<token>', methods=['GET'])
+def get_invitation_by_token(token):
+    """Получить информацию о приглашении по токену"""
+    try:
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM invitation_details WHERE unique_token = ?
+            """, (token,))
+
+            invitation = cursor.fetchone()
+
+            if not invitation:
+                return jsonify({
+                    "success": False,
+                    "error": "Приглашение не найдено"
+                }), 404
+
+            invitation = dict(invitation)
+
+            # Проверяем статус приглашения
+            if invitation['status'] == 'Использовано':
+                return jsonify({
+                    "success": False,
+                    "error": "Это приглашение уже использовано",
+                    "invitation": invitation
+                }), 403
+
+            if invitation['status'] == 'Истекло':
+                return jsonify({
+                    "success": False,
+                    "error": "Срок действия приглашения истек",
+                    "invitation": invitation
+                }), 403
+
+            # Получаем викторину
+            quiz = db.get_quiz(quiz_id=invitation['quiz_id'])
+
+            if not quiz or not quiz.get('is_active'):
+                return jsonify({
+                    "success": False,
+                    "error": "Викторина недоступна"
+                }), 404
+
+            return jsonify({
+                "success": True,
+                "invitation": invitation,
+                "quiz": quiz
+            })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/quizzes/invitations/<token>/start', methods=['POST'])
+def start_quiz_by_invitation(token):
+    """Начать викторину по приглашению"""
+    try:
+        data = request.get_json() or {}
+
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Получаем приглашение
+            cursor.execute("""
+                SELECT * FROM quiz_invitations WHERE unique_token = ?
+            """, (token,))
+
+            invitation = cursor.fetchone()
+
+            if not invitation:
+                return jsonify({
+                    "success": False,
+                    "error": "Приглашение не найдено"
+                }), 404
+
+            invitation = dict(invitation)
+
+            # Проверяем, что приглашение не использовано
+            if invitation['is_used']:
+                return jsonify({
+                    "success": False,
+                    "error": "Это приглашение уже использовано"
+                }), 403
+
+            # Проверяем срок действия
+            if invitation['expires_at']:
+                from datetime import datetime
+                expires_at = datetime.fromisoformat(invitation['expires_at'])
+                if datetime.now() > expires_at:
+                    return jsonify({
+                        "success": False,
+                        "error": "Срок действия приглашения истек"
+                    }), 403
+
+            # Создаем попытку прохождения
+            attempt = db.start_quiz_attempt(
+                quiz_id=invitation['quiz_id'],
+                student_name=invitation['student_name'],
+                student_email=invitation['student_email'],
+                ip_address=data.get('ip_address') or request.remote_addr
+            )
+
+            if not attempt:
+                return jsonify({
+                    "success": False,
+                    "error": "Не удалось начать викторину"
+                }), 500
+
+            # Обновляем приглашение
+            cursor.execute("""
+                UPDATE quiz_invitations
+                SET is_used = 1, used_at = CURRENT_TIMESTAMP, attempt_id = ?
+                WHERE id = ?
+            """, (attempt['id'], invitation['id']))
+
+            # Обновляем попытку
+            cursor.execute("""
+                UPDATE quiz_attempts
+                SET invitation_id = ?
+                WHERE id = ?
+            """, (invitation['id'], attempt['id']))
+
+            conn.commit()
+
+            return jsonify({
+                "success": True,
+                "attempt": attempt,
+                "message": "Викторина успешно начата"
+            })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/invitations/<int:invitation_id>', methods=['DELETE'])
+def delete_invitation(invitation_id):
+    """Удалить приглашение (если оно не использовано)"""
+    try:
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем, что приглашение не использовано
+            cursor.execute("""
+                SELECT is_used FROM quiz_invitations WHERE id = ?
+            """, (invitation_id,))
+
+            invitation = cursor.fetchone()
+
+            if not invitation:
+                return jsonify({
+                    "success": False,
+                    "error": "Приглашение не найдено"
+                }), 404
+
+            if invitation['is_used']:
+                return jsonify({
+                    "success": False,
+                    "error": "Нельзя удалить использованное приглашение"
+                }), 403
+
+            cursor.execute("DELETE FROM quiz_invitations WHERE id = ?", (invitation_id,))
+
+            return jsonify({
+                "success": True,
+                "message": "Приглашение удалено"
+            })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# ==================== AI-АНАЛИЗ С GEMINI (ФАЗА 4) ====================
+
+# Инициализируем Gemini сервис (если установлен API ключ)
+try:
+    from api.gemini_service import GeminiService
+    gemini_service = GeminiService()
+    print("✅ Gemini AI инициализирован")
+except Exception as e:
+    gemini_service = None
+    print(f"⚠️  Gemini AI не инициализирован: {e}")
+
+
+@app.route('/api/ai/analyze-essay', methods=['POST'])
+def ai_analyze_essay():
+    """
+    Анализ эссе с помощью AI
+
+    Body:
+        - answer_id: ID ответа в quiz_answers
+        - question_text: текст вопроса (опционально)
+        - student_answer: ответ студента (опционально)
+        - guidelines: рекомендации (опционально)
+    """
+    if not gemini_service:
+        return jsonify({
+            "success": False,
+            "error": "AI-сервис не настроен. Установите GEMINI_API_KEY"
+        }), 503
+
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "Отсутствуют данные запроса"
+            }), 400
+
+        # Если передан answer_id, получаем данные из БД
+        if 'answer_id' in data:
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Получаем ответ и вопрос
+                cursor.execute("""
+                    SELECT qa.*, q.text as question_text, q.explanation as guidelines
+                    FROM quiz_answers qa
+                    JOIN questions q ON qa.question_id = q.id
+                    WHERE qa.id = ?
+                """, (data['answer_id'],))
+
+                row = cursor.fetchone()
+                if not row:
+                    return jsonify({
+                        "success": False,
+                        "error": "Ответ не найден"
+                    }), 404
+
+                answer_data = dict(row)
+                question_text = answer_data['question_text']
+                student_answer = answer_data['answer']
+                guidelines = answer_data['guidelines']
+                answer_id = data['answer_id']
+
+                # Получаем промпт из викторины
+                cursor.execute("""
+                    SELECT q.ai_essay_analysis_prompt
+                    FROM quizzes q
+                    JOIN quiz_attempts qa ON q.id = qa.quiz_id
+                    JOIN quiz_answers qans ON qa.id = qans.attempt_id
+                    WHERE qans.id = ?
+                """, (answer_id,))
+
+                quiz_row = cursor.fetchone()
+                prompt_template = quiz_row['ai_essay_analysis_prompt'] if quiz_row else None
+
+        else:
+            # Используем данные из запроса
+            question_text = data.get('question_text')
+            student_answer = data.get('student_answer')
+            guidelines = data.get('guidelines')
+            prompt_template = data.get('prompt_template')
+            answer_id = None
+
+            if not question_text or not student_answer:
+                return jsonify({
+                    "success": False,
+                    "error": "Требуются question_text и student_answer"
+                }), 400
+
+        # Анализируем эссе
+        result = gemini_service.analyze_essay(
+            question_text=question_text,
+            student_answer=student_answer,
+            guidelines=guidelines,
+            prompt_template=prompt_template
+        )
+
+        if not result['success']:
+            return jsonify({
+                "success": False,
+                "error": f"Ошибка AI-анализа: {result.get('error')}"
+            }), 500
+
+        # Сохраняем результат в БД, если был answer_id
+        if answer_id:
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE quiz_answers
+                    SET ai_essay_feedback = ?
+                    WHERE id = ?
+                """, (result['feedback'], answer_id))
+
+        return jsonify({
+            "success": True,
+            "feedback": result['feedback'],
+            "metadata": {
+                'prompt_tokens': result.get('prompt_tokens'),
+                'completion_tokens': result.get('completion_tokens')
+            }
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/ai/analyze-quiz', methods=['POST'])
+def ai_analyze_quiz():
+    """
+    Общий анализ прохождения викторины
+
+    Body:
+        - attempt_id: ID попытки прохождения
+    """
+    if not gemini_service:
+        return jsonify({
+            "success": False,
+            "error": "AI-сервис не настроен. Установите GEMINI_API_KEY"
+        }), 503
+
+    try:
+        data = request.get_json()
+
+        if not data or 'attempt_id' not in data:
+            return jsonify({
+                "success": False,
+                "error": "Требуется attempt_id"
+            }), 400
+
+        attempt_id = data['attempt_id']
+
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Получаем детали попытки
+            cursor.execute("""
+                SELECT qa.*, q.title as quiz_name, q.ai_quiz_analysis_prompt
+                FROM quiz_attempts qa
+                JOIN quizzes q ON qa.quiz_id = q.id
+                WHERE qa.id = ?
+            """, (attempt_id,))
+
+            attempt = cursor.fetchone()
+            if not attempt:
+                return jsonify({
+                    "success": False,
+                    "error": "Попытка не найдена"
+                }), 404
+
+            attempt = dict(attempt)
+
+            # Получаем все ответы с вопросами
+            cursor.execute("""
+                SELECT
+                    qans.*,
+                    q.text as question_text,
+                    q.points as points_total
+                FROM quiz_answers qans
+                JOIN questions q ON qans.question_id = q.id
+                WHERE qans.attempt_id = ?
+            """, (attempt_id,))
+
+            answers = [dict(row) for row in cursor.fetchall()]
+
+            # Форматируем данные для анализа
+            questions_data = []
+            for ans in answers:
+                questions_data.append({
+                    'question_text': ans['question_text'],
+                    'is_correct': ans['is_correct'],
+                    'points_earned': ans['points_earned'],
+                    'points_total': ans['points_total']
+                })
+
+            # Анализируем викторину
+            result = gemini_service.analyze_quiz(
+                quiz_name=attempt['quiz_name'],
+                total_score=attempt['points_earned'] or 0,
+                max_score=attempt['points_total'] or 0,
+                questions_data=questions_data,
+                prompt_template=attempt['ai_quiz_analysis_prompt']
+            )
+
+            if not result['success']:
+                return jsonify({
+                    "success": False,
+                    "error": f"Ошибка AI-анализа: {result.get('error')}"
+                }), 500
+
+            # Сохраняем результат
+            cursor.execute("""
+                UPDATE quiz_attempts
+                SET ai_quiz_overall_feedback = ?
+                WHERE id = ?
+            """, (result['feedback'], attempt_id))
+
+            conn.commit()
+
+            return jsonify({
+                "success": True,
+                "feedback": result['feedback'],
+                "metadata": {
+                    'prompt_tokens': result.get('prompt_tokens'),
+                    'completion_tokens': result.get('completion_tokens')
+                }
+            })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/quizzes/<int:quiz_id>/ai-prompts', methods=['GET', 'PUT'])
+def manage_ai_prompts(quiz_id):
+    """
+    GET: Получить AI-промпты викторины
+    PUT: Обновить AI-промпты викторины
+    """
+    if request.method == 'GET':
+        try:
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT ai_essay_analysis_prompt, ai_quiz_analysis_prompt
+                    FROM quizzes
+                    WHERE id = ?
+                """, (quiz_id,))
+
+                row = cursor.fetchone()
+                if not row:
+                    return jsonify({
+                        "success": False,
+                        "error": "Викторина не найдена"
+                    }), 404
+
+                return jsonify({
+                    "success": True,
+                    "prompts": dict(row)
+                })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    else:  # PUT
+        try:
+            data = request.get_json()
+
+            if not data:
+                return jsonify({
+                    "success": False,
+                    "error": "Отсутствуют данные"
+                }), 400
+
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Проверяем существование викторины
+                cursor.execute("SELECT id FROM quizzes WHERE id = ?", (quiz_id,))
+                if not cursor.fetchone():
+                    return jsonify({
+                        "success": False,
+                        "error": "Викторина не найдена"
+                    }), 404
+
+                # Обновляем промпты
+                update_fields = []
+                params = []
+
+                if 'ai_essay_analysis_prompt' in data:
+                    update_fields.append("ai_essay_analysis_prompt = ?")
+                    params.append(data['ai_essay_analysis_prompt'])
+
+                if 'ai_quiz_analysis_prompt' in data:
+                    update_fields.append("ai_quiz_analysis_prompt = ?")
+                    params.append(data['ai_quiz_analysis_prompt'])
+
+                if update_fields:
+                    query = f"UPDATE quizzes SET {', '.join(update_fields)} WHERE id = ?"
+                    params.append(quiz_id)
+                    cursor.execute(query, params)
+
+                # Получаем обновленные промпты
+                cursor.execute("""
+                    SELECT ai_essay_analysis_prompt, ai_quiz_analysis_prompt
+                    FROM quizzes
+                    WHERE id = ?
+                """, (quiz_id,))
+
+                return jsonify({
+                    "success": True,
+                    "prompts": dict(cursor.fetchone())
+                })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+
 if __name__ == '__main__':
     print("🚀 Запуск API сервера...")
     print("📍 API доступен по адресу: http://localhost:5001")
@@ -3055,6 +4128,23 @@ if __name__ == '__main__':
     print("   POST /api/quizzes/session/<id>/complete - Завершить")
     print("   GET  /api/quizzes/<id>/attempts - Попытки викторины")
     print("   GET  /api/quizzes/session/<id> - Детали попытки")
+    print("\n   === DASHBOARD УЧЕНИКОВ (ФАЗА 3) ===")
+    print("   GET  /api/students            - Список учеников с фильтрацией")
+    print("   GET  /api/students/<name>     - Профиль ученика")
+    print("   GET  /api/students/<name>/attempts - Попытки ученика")
+    print("   GET/POST /api/attempts/<id>/notes - Заметки преподавателя")
+    print("   PUT/DEL /api/notes/<id>       - Управление заметкой")
+    print("   GET/POST /api/attempts/<id>/tags - Теги попытки")
+    print("   DEL  /api/attempt-tags/<id>   - Удалить тег")
+    print("\n   === ПЕРСОНАЛЬНЫЕ ПРИГЛАШЕНИЯ ===")
+    print("   GET/POST /api/quizzes/<id>/invitations - Приглашения викторины")
+    print("   GET  /api/quizzes/invitations/<token> - Информация о приглашении")
+    print("   POST /api/quizzes/invitations/<token>/start - Начать по приглашению")
+    print("   DEL  /api/invitations/<id>    - Удалить приглашение")
+    print("\n   === AI-АНАЛИЗ (GEMINI) ===")
+    print("   POST /api/ai/analyze-essay    - Анализ эссе с AI")
+    print("   POST /api/ai/analyze-quiz     - Общий анализ викторины")
+    print("   GET/PUT /api/quizzes/<id>/ai-prompts - Управление AI-промптами")
     print("\n   === ИЗОБРАЖЕНИЯ ===")
     print("   POST /api/images/upload       - Загрузить изображение")
     print("   GET  /api/images/<path>       - Получить изображение")

@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление викторинами - AI настройки</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 32px;
+            color: #2d3748;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 16px;
+        }
+
+        .ai-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .quizzes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .quiz-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .quiz-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+
+        .quiz-card h3 {
+            font-size: 20px;
+            color: #2d3748;
+            margin-bottom: 12px;
+        }
+
+        .quiz-info {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .quiz-info-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .ai-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .ai-status.enabled {
+            background: #d4f4dd;
+            color: #276749;
+        }
+
+        .ai-status.disabled {
+            background: #fed7d7;
+            color: #822727;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        /* Модальное окно */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            max-width: 900px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            padding: 25px 30px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 24px;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #a0aec0;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+
+        .close-btn:hover {
+            background: #f7fafc;
+            color: #4a5568;
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-group .label-help {
+            font-weight: normal;
+            color: #718096;
+            font-size: 13px;
+            margin-left: 8px;
+        }
+
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+            min-height: 200px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .prompt-variables {
+            background: #f7fafc;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+
+        .prompt-variables h4 {
+            font-size: 13px;
+            color: #4a5568;
+            margin-bottom: 8px;
+        }
+
+        .variables-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .variable-tag {
+            background: white;
+            border: 1px solid #cbd5e0;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .variable-tag:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .modal-footer {
+            padding: 20px 30px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-success {
+            background: #d4f4dd;
+            color: #276749;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            color: #822727;
+        }
+
+        .alert-info {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                Управление викторинами
+                <span class="ai-badge">🤖 AI настройки</span>
+            </h1>
+            <p>Настройте AI-анализ для каждой викторины</p>
+        </div>
+
+        <div id="alert-container"></div>
+
+        <div id="quizzes-container" class="quizzes-grid">
+            <div class="empty-state">
+                <div class="loading"></div>
+                <p>Загрузка викторин...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для редактирования AI-промптов -->
+    <div id="ai-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>
+                    <span>🤖</span>
+                    <span id="modal-quiz-name">Настройки AI</span>
+                </h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>
+                        Промпт для анализа эссе
+                        <span class="label-help">Используется при анализе текстовых ответов студентов</span>
+                    </label>
+                    <textarea id="essay-prompt" placeholder="Введите промпт для анализа эссе..."></textarea>
+                    <div class="prompt-variables">
+                        <h4>Доступные переменные (кликните, чтобы скопировать):</h4>
+                        <div class="variables-list">
+                            <span class="variable-tag" onclick="copyToClipboard('{question_text}')" title="Текст вопроса">{question_text}</span>
+                            <span class="variable-tag" onclick="copyToClipboard('{student_answer}')" title="Ответ студента">{student_answer}</span>
+                            <span class="variable-tag" onclick="copyToClipboard('{guidelines}')" title="Рекомендации преподавателя">{guidelines}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Промпт для общего анализа викторины
+                        <span class="label-help">Используется для анализа всей викторины после завершения</span>
+                    </label>
+                    <textarea id="quiz-prompt" placeholder="Введите промпт для анализа викторины..."></textarea>
+                    <div class="prompt-variables">
+                        <h4>Доступные переменные:</h4>
+                        <div class="variables-list">
+                            <span class="variable-tag" onclick="copyToClipboard('{quiz_name}')" title="Название викторины">{quiz_name}</span>
+                            <span class="variable-tag" onclick="copyToClipboard('{total_score}')" title="Набранные баллы">{total_score}</span>
+                            <span class="variable-tag" onclick="copyToClipboard('{max_score}')" title="Максимальные баллы">{max_score}</span>
+                            <span class="variable-tag" onclick="copyToClipboard('{percentage}')" title="Процент правильных ответов">{percentage}</span>
+                            <span class="variable-tag" onclick="copyToClipboard('{questions_data}')" title="Детальные данные по вопросам">{questions_data}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="savePrompts()">💾 Сохранить настройки</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5001/api';
+        let currentQuizId = null;
+
+        // Загрузка викторин при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            loadQuizzes();
+        });
+
+        async function loadQuizzes() {
+            try {
+                const response = await fetch(`${API_URL}/quizzes`);
+                const data = await response.json();
+
+                if (data.success && data.quizzes && data.quizzes.length > 0) {
+                    displayQuizzes(data.quizzes);
+                } else {
+                    showEmptyState();
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки викторин:', error);
+                showAlert('Ошибка загрузки викторин', 'error');
+            }
+        }
+
+        function displayQuizzes(quizzes) {
+            const container = document.getElementById('quizzes-container');
+            container.innerHTML = quizzes.map(quiz => `
+                <div class="quiz-card" onclick="openAIModal(${quiz.id}, '${escapeHtml(quiz.name)}')">
+                    <h3>${escapeHtml(quiz.name)}</h3>
+                    <div class="quiz-info">
+                        <div class="quiz-info-item">
+                            📝 ${quiz.question_count || 0} вопросов
+                        </div>
+                        <div class="quiz-info-item">
+                            👥 ${quiz.attempts_count || 0} попыток
+                        </div>
+                        <div class="quiz-info-item">
+                            ${quiz.ai_essay_analysis_prompt ?
+                                '<span class="ai-status enabled">✓ AI настроен</span>' :
+                                '<span class="ai-status disabled">✗ AI не настроен</span>'}
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="event.stopPropagation(); openAIModal(${quiz.id}, '${escapeHtml(quiz.name)}')">
+                        ⚙️ Настроить AI
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function showEmptyState() {
+            const container = document.getElementById('quizzes-container');
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p>Викторины не найдены</p>
+                    <p style="font-size: 14px; margin-top: 10px;">Создайте викторину, чтобы настроить AI-анализ</p>
+                </div>
+            `;
+        }
+
+        async function openAIModal(quizId, quizName) {
+            currentQuizId = quizId;
+            document.getElementById('modal-quiz-name').textContent = `Настройки AI: ${quizName}`;
+
+            // Загружаем текущие промпты
+            try {
+                const response = await fetch(`${API_URL}/quizzes/${quizId}/ai-prompts`);
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('essay-prompt').value = data.ai_essay_analysis_prompt || '';
+                    document.getElementById('quiz-prompt').value = data.ai_quiz_analysis_prompt || '';
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки промптов:', error);
+            }
+
+            document.getElementById('ai-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('ai-modal').classList.remove('active');
+            currentQuizId = null;
+        }
+
+        async function savePrompts() {
+            if (!currentQuizId) return;
+
+            const essayPrompt = document.getElementById('essay-prompt').value;
+            const quizPrompt = document.getElementById('quiz-prompt').value;
+
+            try {
+                const response = await fetch(`${API_URL}/quizzes/${currentQuizId}/ai-prompts`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ai_essay_analysis_prompt: essayPrompt,
+                        ai_quiz_analysis_prompt: quizPrompt
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('✓ AI-промпты успешно сохранены!', 'success');
+                    closeModal();
+                    loadQuizzes(); // Перезагружаем список
+                } else {
+                    showAlert('Ошибка сохранения: ' + data.error, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка сохранения:', error);
+                showAlert('Ошибка сохранения промптов', 'error');
+            }
+        }
+
+        function showAlert(message, type = 'info') {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.innerHTML = message;
+            container.appendChild(alert);
+
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showAlert(`Скопировано: ${text}`, 'success');
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Закрытие модального окна по клику вне его
+        document.getElementById('ai-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'ai-modal') {
+                closeModal();
+            }
+        });
+
+        // Закрытие по Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
