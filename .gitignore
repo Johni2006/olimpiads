@@ -33,6 +33,7 @@ env/
 *.db-wal
 *.db-shm
 database/backups/
+backups/
 test_*.db
 
 # Logs
