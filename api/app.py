@@ -787,6 +787,7 @@ def quizzes():
                 shuffle_questions=data.get('shuffle_questions', False),
                 shuffle_options=data.get('shuffle_options', False),
                 max_attempts=data.get('max_attempts', 1),
+                unlimited_attempts=data.get('unlimited_attempts', False),
                 available_from=data.get('available_from'),
                 available_until=data.get('available_until')
             )

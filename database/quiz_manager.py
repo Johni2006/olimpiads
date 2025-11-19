@@ -32,6 +32,7 @@ class QuizManager:
         shuffle_questions: bool = False,
         shuffle_options: bool = False,
         max_attempts: int = 1,
+        unlimited_attempts: bool = False,
         available_from: str = None,
         available_until: str = None
     ) -> Dict:
@@ -50,6 +51,7 @@ class QuizManager:
             shuffle_questions: Перемешивать вопросы
             shuffle_options: Перемешивать варианты ответов
             max_attempts: Максимальное количество попыток
+            unlimited_attempts: Неограниченное количество попыток (отключает max_attempts)
             available_from: Дата начала доступности
             available_until: Дата окончания доступности
 
@@ -73,14 +75,14 @@ class QuizManager:
                 INSERT INTO quizzes (
                     title, description, unique_code, created_by, status,
                     time_limit, show_correct_answers, allow_review, pass_threshold,
-                    shuffle_questions, shuffle_options, max_attempts,
+                    shuffle_questions, shuffle_options, max_attempts, unlimited_attempts,
                     available_from, available_until
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 title, description, unique_code, created_by, status,
                 time_limit, show_correct_answers, allow_review, pass_threshold,
-                shuffle_questions, shuffle_options, max_attempts,
+                shuffle_questions, shuffle_options, max_attempts, unlimited_attempts,
                 available_from, available_until
             ))
 
@@ -185,7 +187,7 @@ class QuizManager:
             allowed_fields = [
                 'title', 'description', 'is_active', 'status', 'time_limit',
                 'show_correct_answers', 'allow_review', 'pass_threshold',
-                'shuffle_questions', 'shuffle_options', 'max_attempts',
+                'shuffle_questions', 'shuffle_options', 'max_attempts', 'unlimited_attempts',
                 'available_from', 'available_until', 'custom_slug', 'require_email_validation'
             ]
 
@@ -406,8 +408,8 @@ class QuizManager:
             if now > available_until:
                 return None
 
-        # Проверяем количество попыток
-        if quiz.get('max_attempts'):
+        # Проверяем количество попыток (если не включен режим неограниченных попыток)
+        if not quiz.get('unlimited_attempts') and quiz.get('max_attempts'):
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""

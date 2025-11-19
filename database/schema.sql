@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS quizzes (
     shuffle_questions BOOLEAN DEFAULT 0,
     shuffle_options BOOLEAN DEFAULT 0,
     max_attempts INTEGER DEFAULT 1,
+    unlimited_attempts BOOLEAN DEFAULT 0,
     available_from TIMESTAMP,
     available_until TIMESTAMP
 );

@@ -93,12 +93,27 @@ function displayQuizzes(quizzes) {
 // Вместо этого используется функция addQuestionToQuiz() из app.js,
 // которая показывает список существующих викторин и добавляет вопросы туда.
 
+// Переключить доступность поля максимума попыток
+function toggleMaxAttempts() {
+    const unlimitedCheckbox = document.getElementById('quiz-unlimited-attempts');
+    const maxAttemptsInput = document.getElementById('quiz-max-attempts');
+
+    if (unlimitedCheckbox.checked) {
+        maxAttemptsInput.disabled = true;
+        maxAttemptsInput.style.opacity = '0.5';
+    } else {
+        maxAttemptsInput.disabled = false;
+        maxAttemptsInput.style.opacity = '1';
+    }
+}
+
 // Создать викторину
 async function createQuiz() {
     const title = document.getElementById('quiz-title').value.trim();
     const description = document.getElementById('quiz-description').value.trim();
     const creator = document.getElementById('quiz-creator').value.trim();
     const maxAttempts = parseInt(document.getElementById('quiz-max-attempts').value);
+    const unlimitedAttempts = document.getElementById('quiz-unlimited-attempts').checked;
 
     // Валидация
     if (!title) {
@@ -118,6 +133,7 @@ async function createQuiz() {
                 description: description,
                 created_by: creator || 'Учитель',
                 max_attempts: maxAttempts,
+                unlimited_attempts: unlimitedAttempts,
                 show_correct_answers: false,
                 allow_review: true,
                 pass_threshold: 0.0,
