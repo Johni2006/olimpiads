@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Профиль ученика</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -487,6 +488,21 @@
                 </div>
             </div>
 
+            <!-- Графики прогресса -->
+            <div class="content">
+                <h2>📊 Динамика прогресса</h2>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px; margin-top: 20px;">
+                    <div>
+                        <h3 style="font-size: 18px; margin-bottom: 15px; color: #4a5568;">Динамика баллов</h3>
+                        <canvas id="scoreProgressChart"></canvas>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 18px; margin-bottom: 15px; color: #4a5568;">Распределение успеваемости</h3>
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <!-- Попытки -->
             <div class="content">
                 <h2>История попыток</h2>
@@ -603,6 +619,9 @@
 
             displayAttempts(profile.attempts || []);
 
+            // Создаем графики прогресса
+            createProgressCharts(profile.attempts || []);
+
             document.getElementById('profile-content').style.display = 'block';
         }
 
@@ -641,6 +660,123 @@
                 `;
 
                 tbody.appendChild(row);
+            });
+        }
+
+        // Создание графиков прогресса
+        function createProgressCharts(attempts) {
+            if (!attempts || attempts.length === 0) {
+                return;
+            }
+
+            // Фильтруем завершенные попытки и сортируем по дате
+            const completedAttempts = attempts
+                .filter(a => a.completed_at)
+                .sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
+
+            if (completedAttempts.length === 0) {
+                return;
+            }
+
+            // 1. График динамики баллов (линейный график)
+            const scoreCtx = document.getElementById('scoreProgressChart').getContext('2d');
+            new Chart(scoreCtx, {
+                type: 'line',
+                data: {
+                    labels: completedAttempts.map((a, i) => `Попытка ${i + 1}`),
+                    datasets: [{
+                        label: 'Процент правильных ответов',
+                        data: completedAttempts.map(a => {
+                            const percentage = (a.score / a.points_total * 100) || 0;
+                            return percentage.toFixed(1);
+                        }),
+                        borderColor: 'rgb(102, 126, 234)',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Результат: ${context.parsed.y}%`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 2. График распределения успеваемости (круговая диаграмма)
+            const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+
+            // Категоризируем попытки по успеваемости
+            const excellent = completedAttempts.filter(a => (a.score / a.points_total * 100) >= 90).length;
+            const good = completedAttempts.filter(a => {
+                const pct = a.score / a.points_total * 100;
+                return pct >= 75 && pct < 90;
+            }).length;
+            const satisfactory = completedAttempts.filter(a => {
+                const pct = a.score / a.points_total * 100;
+                return pct >= 60 && pct < 75;
+            }).length;
+            const needsImprovement = completedAttempts.filter(a => (a.score / a.points_total * 100) < 60).length;
+
+            new Chart(performanceCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Отлично (90%+)', 'Хорошо (75-89%)', 'Удовлетворительно (60-74%)', 'Требует улучшения (<60%)'],
+                    datasets: [{
+                        data: [excellent, good, satisfactory, needsImprovement],
+                        backgroundColor: [
+                            'rgba(76, 175, 80, 0.8)',
+                            'rgba(33, 150, 243, 0.8)',
+                            'rgba(255, 193, 7, 0.8)',
+                            'rgba(244, 67, 54, 0.8)'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
             });
         }
 
