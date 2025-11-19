@@ -232,6 +232,8 @@ async function applyFilters() {
         });
 
         // Добавляем фильтры
+        const searchText = document.getElementById('filter-search-text')?.value;
+        const tagsInput = document.getElementById('filter-tags')?.value;
         const sourcePdf = document.getElementById('filter-source-pdf').value;
         const subject = document.getElementById('filter-subject').value;
         const university = document.getElementById('filter-university').value;
@@ -240,6 +242,8 @@ async function applyFilters() {
         const difficulty = document.getElementById('filter-difficulty').value;
         const verified = document.getElementById('filter-verified').value;
 
+        if (searchText) params.append('search_text', searchText);
+        if (tagsInput) params.append('tags', tagsInput);
         if (sourcePdf) params.append('source_pdf', sourcePdf);
         if (subject) params.append('subject', subject);
         if (university) params.append('university', university);
@@ -275,6 +279,7 @@ function displayQuestions(questions) {
         const subjects = tags.subject || [];
         const universities = tags.university || [];
         const years = tags.year || [];
+        const customTags = tags.custom || [];
 
         return `
             <div class="question-card">
@@ -306,6 +311,7 @@ function displayQuestions(questions) {
                     ${subjects.map(s => `<span class="tag subject">${s}</span>`).join('')}
                     ${universities.map(u => `<span class="tag university">${u}</span>`).join('')}
                     ${years.map(y => `<span class="tag year">${y}</span>`).join('')}
+                    ${customTags.map(t => `<span class="tag custom-tag" title="Свободный тег">#${t}</span>`).join('')}
                     ${q.difficulty ? `<span class="tag difficulty">Сложность: ${q.difficulty}</span>` : ''}
                     <span class="tag">Баллов: ${q.points || 1}</span>
                     <span class="tag">${getTypeLabel(q.type)}</span>

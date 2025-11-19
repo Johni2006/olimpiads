@@ -102,10 +102,12 @@ CREATE TABLE IF NOT EXISTS student_answers (
 -- Индексы для ускорения поиска
 CREATE INDEX IF NOT EXISTS idx_questions_type ON questions(type);
 CREATE INDEX IF NOT EXISTS idx_questions_difficulty ON questions(difficulty);
+CREATE INDEX IF NOT EXISTS idx_questions_text ON questions(text); -- для полнотекстового поиска
 CREATE INDEX IF NOT EXISTS idx_options_question ON options(question_id);
 CREATE INDEX IF NOT EXISTS idx_tags_question ON tags(question_id);
 CREATE INDEX IF NOT EXISTS idx_tags_category ON tags(category);
 CREATE INDEX IF NOT EXISTS idx_tags_value ON tags(value);
+CREATE INDEX IF NOT EXISTS idx_tags_category_value ON tags(category, value); -- комбинированный индекс
 CREATE INDEX IF NOT EXISTS idx_matching_question ON matching_pairs(question_id);
 CREATE INDEX IF NOT EXISTS idx_images_question ON images(question_id);
 CREATE INDEX IF NOT EXISTS idx_images_option ON images(option_id);

@@ -51,6 +51,8 @@ def get_questions():
         - topic: тема
         - verified: только проверенные (true/false)
         - source_pdf: путь к исходному PDF файлу
+        - search_text: поиск по тексту вопроса (поддержка масок: *возрожд*)
+        - tags: список тегов через запятую (например: ницше,возрождение)
         - limit: количество вопросов (по умолчанию 50)
         - offset: смещение для пагинации
     """
@@ -64,8 +66,15 @@ def get_questions():
         topic = request.args.get('topic')
         verified = request.args.get('verified')
         source_pdf = request.args.get('source_pdf')
+        search_text = request.args.get('search_text')
+        tags_param = request.args.get('tags')
         limit = request.args.get('limit', default=50, type=int)
         offset = request.args.get('offset', default=0, type=int)
+
+        # Парсим теги если они есть
+        tags = None
+        if tags_param:
+            tags = [tag.strip() for tag in tags_param.split(',') if tag.strip()]
 
         # Получаем вопросы
         questions = db.get_questions(
@@ -77,6 +86,8 @@ def get_questions():
             topic=topic,
             verified=verified,
             source_pdf=source_pdf,
+            search_text=search_text,
+            tags=tags,
             limit=limit,
             offset=offset
         )
@@ -91,7 +102,9 @@ def get_questions():
                 "year": year,
                 "question_type": question_type,
                 "difficulty": difficulty,
-                "topic": topic
+                "topic": topic,
+                "search_text": search_text,
+                "tags": tags
             }
         })
 
@@ -156,6 +169,144 @@ def get_stats():
         return jsonify({
             "success": True,
             "stats": stats
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# ==================== УПРАВЛЕНИЕ ТЕГАМИ ====================
+
+@app.route('/api/tags', methods=['GET'])
+def get_all_tags():
+    """
+    Получить все уникальные теги
+
+    Query params:
+        - category: фильтр по категории (опционально)
+    """
+    try:
+        category = request.args.get('category')
+        tags = db.get_all_tags(category=category)
+
+        return jsonify({
+            "success": True,
+            "tags": tags
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/questions/<int:question_id>/tags', methods=['POST'])
+def add_question_tag(question_id):
+    """
+    Добавить тег к вопросу
+
+    Body:
+        - category: категория тега ('custom', 'topic', и т.д.)
+        - value: значение тега
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'category' not in data or 'value' not in data:
+            return jsonify({
+                "success": False,
+                "error": "Необходимо указать category и value"
+            }), 400
+
+        tag_id = db.add_tag(
+            question_id=question_id,
+            category=data['category'],
+            value=data['value']
+        )
+
+        return jsonify({
+            "success": True,
+            "tag_id": tag_id
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/questions/<int:question_id>/tags', methods=['DELETE'])
+def remove_question_tag(question_id):
+    """
+    Удалить тег из вопроса
+
+    Body:
+        - category: категория тега
+        - value: значение тега
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'category' not in data or 'value' not in data:
+            return jsonify({
+                "success": False,
+                "error": "Необходимо указать category и value"
+            }), 400
+
+        removed = db.remove_tag(
+            question_id=question_id,
+            category=data['category'],
+            value=data['value']
+        )
+
+        return jsonify({
+            "success": True,
+            "removed": removed
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/questions/<int:question_id>/tags/<category>', methods=['PUT'])
+def update_question_tags(question_id, category):
+    """
+    Обновить теги вопроса определенной категории
+
+    Body:
+        - tags: список тегов ['tag1', 'tag2', ...]
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'tags' not in data:
+            return jsonify({
+                "success": False,
+                "error": "Необходимо указать tags"
+            }), 400
+
+        if not isinstance(data['tags'], list):
+            return jsonify({
+                "success": False,
+                "error": "tags должен быть массивом"
+            }), 400
+
+        db.update_question_tags(
+            question_id=question_id,
+            category=category,
+            tags=data['tags']
+        )
+
+        return jsonify({
+            "success": True
         })
 
     except Exception as e:

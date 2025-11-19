@@ -158,11 +158,17 @@ class DatabaseManager(QuizManager):
         topic: str = None,
         verified: str = None,
         source_pdf: str = None,
+        search_text: str = None,
+        tags: List[str] = None,
         limit: int = 100,
         offset: int = 0
     ) -> List[Dict]:
         """
         Получить вопросы с фильтрацией
+
+        Args:
+            search_text: Поиск по тексту вопроса (поддержка масок: *возрожд* -> %возрожд%)
+            tags: Список свободных тегов для фильтрации (например, ['ницше', 'возрождение'])
 
         Returns:
             Список вопросов с вариантами ответов
@@ -170,8 +176,8 @@ class DatabaseManager(QuizManager):
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Если используется только source_pdf, упрощаем запрос
-            if source_pdf and not any([subject, university, year, topic]):
+            # Если используется только source_pdf без других фильтров, упрощаем запрос
+            if source_pdf and not any([subject, university, year, topic, search_text, tags]):
                 query = "SELECT * FROM questions WHERE source_pdf = ?"
                 params = [source_pdf]
 
@@ -237,6 +243,22 @@ class DatabaseManager(QuizManager):
                 if source_pdf:
                     query += " AND q.source_pdf = ?"
                     params.append(source_pdf)
+
+                # Полнотекстовый поиск с поддержкой масок (* -> %)
+                if search_text:
+                    # Заменяем * на % для SQL LIKE
+                    search_pattern = search_text.replace('*', '%')
+                    # Если нет подстановочных знаков, добавляем их по краям
+                    if '%' not in search_pattern:
+                        search_pattern = f'%{search_pattern}%'
+                    query += " AND q.text LIKE ?"
+                    params.append(search_pattern)
+
+                # Фильтрация по свободным тегам (категория 'custom')
+                if tags:
+                    for tag in tags:
+                        query += " AND EXISTS (SELECT 1 FROM tags t_custom WHERE t_custom.question_id = q.id AND t_custom.category = 'custom' AND t_custom.value = ?)"
+                        params.append(tag.lower())
 
                 query += " ORDER BY q.id LIMIT ? OFFSET ?"
                 params.extend([limit, offset])
@@ -326,6 +348,111 @@ class DatabaseManager(QuizManager):
                 ORDER BY id
             """, (question_id,))
             return [dict(row) for row in cursor.fetchall()]
+
+    # ==================== УПРАВЛЕНИЕ ТЕГАМИ ====================
+
+    def add_tag(self, question_id: int, category: str, value: str) -> int:
+        """
+        Добавить тег к вопросу
+
+        Args:
+            question_id: ID вопроса
+            category: Категория тега ('subject', 'topic', 'custom' и т.д.)
+            value: Значение тега
+
+        Returns:
+            ID добавленного тега
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # Проверяем, нет ли уже такого тега
+            cursor.execute("""
+                SELECT id FROM tags
+                WHERE question_id = ? AND category = ? AND value = ?
+            """, (question_id, category, value.lower()))
+
+            existing = cursor.fetchone()
+            if existing:
+                return existing['id']
+
+            cursor.execute("""
+                INSERT INTO tags (question_id, category, value)
+                VALUES (?, ?, ?)
+            """, (question_id, category, value.lower()))
+
+            return cursor.lastrowid
+
+    def remove_tag(self, question_id: int, category: str, value: str) -> bool:
+        """
+        Удалить тег из вопроса
+
+        Returns:
+            True если тег был удален, False если не найден
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                DELETE FROM tags
+                WHERE question_id = ? AND category = ? AND value = ?
+            """, (question_id, category, value.lower()))
+
+            return cursor.rowcount > 0
+
+    def get_all_tags(self, category: str = None) -> List[Dict]:
+        """
+        Получить все уникальные теги
+
+        Args:
+            category: Фильтр по категории (опционально)
+
+        Returns:
+            Список уникальных тегов с количеством использований
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            if category:
+                cursor.execute("""
+                    SELECT category, value, COUNT(*) as count
+                    FROM tags
+                    WHERE category = ?
+                    GROUP BY category, value
+                    ORDER BY count DESC, value ASC
+                """, (category,))
+            else:
+                cursor.execute("""
+                    SELECT category, value, COUNT(*) as count
+                    FROM tags
+                    GROUP BY category, value
+                    ORDER BY category, count DESC, value ASC
+                """)
+
+            return [dict(row) for row in cursor.fetchall()]
+
+    def update_question_tags(self, question_id: int, category: str, tags: List[str]) -> None:
+        """
+        Обновить теги вопроса определенной категории (заменяет все существующие)
+
+        Args:
+            question_id: ID вопроса
+            category: Категория тегов
+            tags: Новый список тегов
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Удаляем все старые теги этой категории
+            cursor.execute("""
+                DELETE FROM tags
+                WHERE question_id = ? AND category = ?
+            """, (question_id, category))
+
+            # Добавляем новые теги
+            for tag in tags:
+                cursor.execute("""
+                    INSERT INTO tags (question_id, category, value)
+                    VALUES (?, ?, ?)
+                """, (question_id, category, tag.lower()))
 
     # ==================== УПРАВЛЕНИЕ PDF ФАЙЛАМИ ====================
 

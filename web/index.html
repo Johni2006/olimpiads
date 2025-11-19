@@ -185,6 +185,7 @@
         .tag.university { background: #f3e5f5; color: #7b1fa2; }
         .tag.year { background: #fff3e0; color: #e65100; }
         .tag.difficulty { background: #ffebee; color: #c62828; }
+        .tag.custom-tag { background: #e8f5e9; color: #2e7d32; font-weight: 600; }
 
         .options {
             margin: 15px 0;
@@ -724,6 +725,14 @@
                 <h2>Поиск и просмотр вопросов</h2>
 
                 <div class="filters">
+                    <div class="filter-group" style="grid-column: 1 / -1;">
+                        <label>🔍 Поиск по тексту (поддержка масок: *возрожд*)</label>
+                        <input type="text" id="filter-search-text" placeholder="Введите текст для поиска..." onkeyup="if(event.key==='Enter')applyFilters()">
+                    </div>
+                    <div class="filter-group" style="grid-column: 1 / -1;">
+                        <label>🏷️ Теги (через запятую, например: ницше,возрождение)</label>
+                        <input type="text" id="filter-tags" placeholder="Введите теги через запятую..." onkeyup="if(event.key==='Enter')applyFilters()">
+                    </div>
                     <div class="filter-group">
                         <label>Исходный PDF</label>
                         <select id="filter-source-pdf" onchange="applyFilters()">
