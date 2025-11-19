@@ -290,6 +290,9 @@ function displayQuestions(questions) {
                         ${q.verified ? '<span class="verified-badge">✓ Проверено</span>' : ''}
                     </div>
                     <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="btn-secondary" style="padding: 8px 15px; font-size: 0.9em; background: #4caf50; color: white;" onclick="addQuestionToQuiz(${q.id})" title="Добавить в викторину">
+                            ➕ В викторину
+                        </button>
                         <button class="edit-btn" onclick="showEditQuestionModal(${q.id})">✏️ Редактировать</button>
                         ${q.source_pdf ? `
                             <a href="${API_URL}/pdf/${encodeURIComponent(q.source_pdf)}"
