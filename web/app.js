@@ -1104,6 +1104,19 @@ function addNewQuestion(pdfId = null, sourcePdf = null) {
                         <textarea id="new-text" rows="4" required></textarea>
                     </div>
 
+                    <!-- Изображения к вопросу -->
+                    <div class="form-group">
+                        <label>Изображения к вопросу:</label>
+                        <div style="padding: 15px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                            <p style="margin: 0; color: #666;">
+                                💡 <strong>Совет:</strong> Сначала создайте вопрос, затем откройте его для редактирования, чтобы добавить изображения.
+                            </p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.9em; color: #888;">
+                                Изображения будут отображаться над текстом вопроса.
+                            </p>
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label>Тип вопроса:</label>
                         <select id="new-type" onchange="updateNewQuestionTypeFields()">
