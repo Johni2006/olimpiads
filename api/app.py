@@ -19,8 +19,9 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app)  # Разрешаем CORS для работы с фронтендом
 
-# Инициализируем БД
-db = DatabaseManager("olympiad_questions.db")
+# Инициализируем БД с абсолютным путем к корню проекта
+DB_PATH = Path(__file__).parent.parent / "olympiad_questions.db"
+db = DatabaseManager(str(DB_PATH))
 
 
 @app.route('/api/health', methods=['GET'])
