@@ -315,6 +315,49 @@
             margin: 15px 0;
         }
 
+        /* AI Feedback Section */
+        .ai-feedback-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .ai-feedback-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ai-feedback-content {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            color: #2d3748;
+            font-size: 14px;
+        }
+
+        .ai-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .no-ai-feedback {
+            color: #a0aec0;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+
         .tag {
             display: inline-flex;
             align-items: center;
@@ -485,6 +528,9 @@
                     <button class="btn btn-primary" onclick="addTag()">Добавить тег</button>
                 </div>
 
+                <!-- AI Feedback -->
+                <div id="ai-feedback-container"></div>
+
                 <!-- Заметки -->
                 <div class="notes-section">
                     <h3>Заметки преподавателя</h3>
@@ -603,9 +649,10 @@
             currentAttemptId = attempt.id;
             document.getElementById('modal-title').textContent = `${attempt.quiz_title || 'Без названия'}`;
 
-            // Загружаем заметки и теги
+            // Загружаем заметки, теги и AI-фидбэк
             await loadNotes(attempt.id);
             await loadTags(attempt.id);
+            await loadAIFeedback(attempt.id);
 
             document.getElementById('attempt-modal').style.display = 'block';
         }
@@ -749,6 +796,56 @@
                 `;
                 tagsDiv.appendChild(tagSpan);
             });
+        }
+
+        // Загрузка AI-фидбэка
+        async function loadAIFeedback(attemptId) {
+            const container = document.getElementById('ai-feedback-container');
+
+            try {
+                const response = await fetch(`${API_URL}/quizzes/session/${attemptId}`);
+                const data = await response.json();
+
+                if (data.success && data.attempt) {
+                    const feedback = data.attempt.ai_quiz_overall_feedback;
+
+                    if (feedback) {
+                        container.innerHTML = `
+                            <div class="ai-feedback-section">
+                                <h3>
+                                    <span>🤖</span>
+                                    AI-анализ викторины
+                                    <span class="ai-badge">GEMINI</span>
+                                </h3>
+                                <div class="ai-feedback-content">${escapeHtml(feedback)}</div>
+                            </div>
+                        `;
+                    } else {
+                        container.innerHTML = `
+                            <div class="ai-feedback-section">
+                                <h3>
+                                    <span>🤖</span>
+                                    AI-анализ викторины
+                                </h3>
+                                <div class="no-ai-feedback">
+                                    AI-анализ еще не проведен для этой попытки
+                                </div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    container.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки AI-фидбэка:', error);
+                container.innerHTML = '';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         // Добавление тега
