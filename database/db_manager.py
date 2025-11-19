@@ -15,7 +15,17 @@ class DatabaseManager(QuizManager):
 
     def __init__(self, db_path: str = "olympiad_questions.db"):
         self.db_path = Path(db_path)
+        self._conn = None
         self.init_database()
+
+    @property
+    def conn(self):
+        """Получить постоянное соединение (для обратной совместимости)"""
+        if self._conn is None:
+            self._conn = sqlite3.connect(self.db_path)
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA foreign_keys = ON")
+        return self._conn
 
     @contextmanager
     def get_connection(self):
@@ -59,7 +69,8 @@ class DatabaseManager(QuizManager):
         points: float = 1.0,
         explanation: str = None,
         source_pdf: str = None,
-        page_number: int = None
+        page_number: int = None,
+        correct_text: str = None
     ) -> int:
         """
         Добавить вопрос в базу данных
@@ -102,9 +113,9 @@ class DatabaseManager(QuizManager):
 
             # Добавляем вопрос
             cursor.execute("""
-                INSERT INTO questions (text, type, difficulty, points, explanation, source_pdf, page_number)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (text, question_type, difficulty, points, explanation, source_pdf, page_number))
+                INSERT INTO questions (text, type, difficulty, points, explanation, source_pdf, page_number, correct_text)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (text, question_type, difficulty, points, explanation, source_pdf, page_number, correct_text))
 
             question_id = cursor.lastrowid
 
@@ -238,6 +249,7 @@ class DatabaseManager(QuizManager):
                 question['options'] = self._get_options(question['id'])
                 question['matching_pairs'] = self._get_matching_pairs(question['id'])
                 question['tags'] = self._get_tags(question['id'])
+                question['images'] = self._get_images(question['id'])
 
             return questions
 
@@ -255,6 +267,7 @@ class DatabaseManager(QuizManager):
             question['options'] = self._get_options(question_id)
             question['matching_pairs'] = self._get_matching_pairs(question_id)
             question['tags'] = self._get_tags(question_id)
+            question['images'] = self._get_images(question_id)
 
             return question
 
@@ -301,6 +314,18 @@ class DatabaseManager(QuizManager):
                 tags[category].append(value)
 
             return tags
+
+    def _get_images(self, question_id: int) -> List[Dict]:
+        """Получить изображения для вопроса"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, file_path, image_type, width, height, description
+                FROM images
+                WHERE question_id = ?
+                ORDER BY id
+            """, (question_id,))
+            return [dict(row) for row in cursor.fetchall()]
 
     # ==================== УПРАВЛЕНИЕ PDF ФАЙЛАМИ ====================
 
@@ -635,6 +660,10 @@ class DatabaseManager(QuizManager):
             if 'explanation' in data:
                 update_fields.append("explanation = ?")
                 params.append(data['explanation'])
+
+            if 'correct_text' in data:
+                update_fields.append("correct_text = ?")
+                params.append(data['correct_text'])
 
             if 'verified' in data:
                 update_fields.append("verified = ?")

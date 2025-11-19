@@ -645,6 +645,30 @@
             background: #f44336;
         }
 
+        /* Стили для изображений в вопросе */
+        .question-images {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .question-image-preview {
+            position: relative;
+            display: inline-block;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 5px;
+            background: #f0f7ff;
+        }
+
+        .question-image-preview img {
+            display: block;
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 4px;
+        }
+
         /* Стили для изображений в вариантах ответа */
         .option-images {
             margin-top: 10px;
@@ -1103,6 +1127,44 @@
                             <p style="color: #666; margin: 10px 0;">Синхронизировать БД между директориями</p>
                             <button onclick="syncDatabase()">🔄 Синхронизировать</button>
                             <div id="sync-status" style="margin-top: 10px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Автотесты -->
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3>🧪 Автотесты (E2E Playwright)</h3>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                        <div style="background: white; padding: 15px; border-radius: 8px;">
+                            <h4>🚀 Запуск тестов</h4>
+                            <p style="color: #666; margin: 10px 0;">Запустить E2E тесты системы</p>
+                            <div style="display: flex; gap: 10px; flex-direction: column;">
+                                <button onclick="runAllTests()" style="background: #4CAF50; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                                    ▶️ Запустить все тесты
+                                </button>
+                                <button onclick="window.open('/tests.html', '_blank')" style="background: #2196F3; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer;">
+                                    📊 Открыть панель тестов
+                                </button>
+                            </div>
+                            <div id="tests-status" style="margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 5px; display: none;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <strong>Статус:</strong>
+                                    <span id="tests-status-text">Готов</span>
+                                </div>
+                                <div id="tests-progress" style="margin-top: 10px;"></div>
+                            </div>
+                        </div>
+
+                        <div style="background: white; padding: 15px; border-radius: 8px;">
+                            <h4>🧹 Очистка тестовых данных</h4>
+                            <p style="color: #666; margin: 10px 0;">Удалить все данные созданные тестами</p>
+                            <button onclick="cleanupTestData()" style="background: #f44336; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
+                                🗑️ Удалить тестовые данные
+                            </button>
+                            <div id="cleanup-status" style="margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 5px; font-size: 0.9em; display: none;">
+                                <!-- Статус очистки -->
+                            </div>
                         </div>
                     </div>
                 </div>

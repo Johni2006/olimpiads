@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS questions (
     difficulty INTEGER DEFAULT 1,  -- 1-5 (1=легко, 5=сложно)
     points REAL DEFAULT 1.0,
     explanation TEXT,  -- объяснение правильного ответа
+    correct_text TEXT,  -- правильный текстовый ответ (для вопросов типа text/essay)
     source_pdf VARCHAR(500),
     page_number INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

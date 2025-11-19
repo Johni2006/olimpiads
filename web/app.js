@@ -1429,6 +1429,108 @@ async function syncDatabase() {
     }
 }
 
+// =========================
+// Автотесты
+// =========================
+
+async function runAllTests() {
+    const statusDiv = document.getElementById('tests-status');
+    const statusText = document.getElementById('tests-status-text');
+    statusDiv.style.display = 'block';
+    statusText.textContent = 'Запуск тестов...';
+
+    try {
+        const response = await fetch(`${API_URL}/tests/run`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                test_group: 'all',
+                headed: false
+            })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            statusText.textContent = 'Тесты выполнены успешно!';
+            const progressDiv = document.getElementById('tests-progress');
+            progressDiv.innerHTML = `
+                <div style="padding: 10px; background: #e8f5e9; border-radius: 6px; color: #2e7d32; margin-top: 10px;">
+                    <strong>✓ Все тесты пройдены успешно!</strong>
+                </div>
+            `;
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        } else {
+            statusText.textContent = 'Тесты завершились с ошибками';
+            const progressDiv = document.getElementById('tests-progress');
+            progressDiv.innerHTML = `
+                <div style="padding: 10px; background: #ffebee; border-radius: 6px; color: #c62828; margin-top: 10px;">
+                    <strong>✗ Некоторые тесты провалились</strong><br>
+                    <small>Откройте панель тестов для подробностей</small>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Ошибка запуска тестов:', error);
+        statusText.textContent = 'Ошибка!';
+        const progressDiv = document.getElementById('tests-progress');
+        progressDiv.innerHTML = `
+            <div style="padding: 10px; background: #ffebee; border-radius: 6px; color: #c62828; margin-top: 10px;">
+                <strong>✗ Ошибка:</strong> ${error.message}
+            </div>
+        `;
+    }
+}
+
+async function cleanupTestData() {
+    if (!confirm('Вы уверены, что хотите удалить все тестовые данные? Это действие нельзя отменить.')) {
+        return;
+    }
+
+    const statusDiv = document.getElementById('cleanup-status');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div style="color: #ff9800;">⏳ Удаление тестовых данных...</div>';
+
+    try {
+        const response = await fetch(`${API_URL}/tests/cleanup`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            statusDiv.innerHTML = `
+                <div style="padding: 10px; background: #e8f5e9; border-radius: 6px; color: #2e7d32;">
+                    <strong>✓ Тестовые данные удалены!</strong><br>
+                    <small>Викторин: ${data.stats.quizzes}, Вопросов: ${data.stats.questions}, PDF: ${data.stats.pdfs}</small>
+                </div>
+            `;
+            // Обновляем список вопросов
+            if (currentTab === 'questions') {
+                loadQuestions();
+            }
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        } else {
+            statusDiv.innerHTML = `
+                <div style="padding: 10px; background: #ffebee; border-radius: 6px; color: #c62828;">
+                    <strong>✗ Ошибка:</strong> ${data.error}
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Ошибка очистки:', error);
+        statusDiv.innerHTML = `
+            <div style="padding: 10px; background: #ffebee; border-radius: 6px; color: #c62828;">
+                <strong>✗ Ошибка:</strong> ${error.message}
+            </div>
+        `;
+    }
+}
+
 async function loadAdminStats() {
     const container = document.getElementById('admin-stats-container');
     container.innerHTML = '<div class="loading">Загрузка статистики...</div>';

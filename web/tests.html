@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Автотесты - Управление</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 32px;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 16px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+
+        .card h2 {
+            font-size: 20px;
+            color: #2d3748;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-primary {
+            background: #4299e1;
+            color: white;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ed8936;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #718096;
+            color: white;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .stat-passed { color: #48bb78; }
+        .stat-failed { color: #f56565; }
+        .stat-skipped { color: #ed8936; }
+        .stat-total { color: #4299e1; }
+
+        .log-container {
+            background: #1a202c;
+            border-radius: 8px;
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+
+        .log-line {
+            margin: 2px 0;
+            white-space: pre-wrap;
+        }
+
+        .log-success { color: #48bb78; }
+        .log-error { color: #f56565; }
+        .log-warning { color: #ed8936; }
+        .log-info { color: #4299e1; }
+
+        .loader {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-info {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🧪 Управление автотестами</h1>
+            <p>Playwright E2E тестирование системы викторин</p>
+        </div>
+
+        <!-- Быстрые действия -->
+        <div class="card">
+            <h2>⚡ Быстрые действия</h2>
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="runAllTests()">
+                    <span>🚀</span> Запустить все тесты
+                </button>
+                <button class="btn btn-danger" onclick="cleanupTestData()">
+                    <span>🧹</span> Очистить тестовые данные
+                </button>
+                <button class="btn btn-secondary" onclick="showReport()">
+                    <span>📊</span> Показать отчет
+                </button>
+            </div>
+        </div>
+
+        <!-- Группы тестов -->
+        <div class="card">
+            <h2>📦 Запуск по группам</h2>
+            <div class="button-group">
+                <button class="btn btn-success" onclick="runTestGroup('create')">
+                    <span>➕</span> CREATE тесты
+                </button>
+                <button class="btn btn-success" onclick="runTestGroup('read')">
+                    <span>📖</span> READ тесты
+                </button>
+                <button class="btn btn-success" onclick="runTestGroup('update')">
+                    <span>✏️</span> UPDATE тесты
+                </button>
+                <button class="btn btn-success" onclick="runTestGroup('delete')">
+                    <span>🗑️</span> DELETE тесты
+                </button>
+                <button class="btn btn-success" onclick="runTestGroup('scoring')">
+                    <span>🎯</span> SCORING тесты
+                </button>
+            </div>
+        </div>
+
+        <!-- Статистика -->
+        <div class="card" id="statsCard" style="display: none;">
+            <h2>📈 Статистика последнего запуска</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value stat-total" id="statTotal">0</div>
+                    <div class="stat-label">Всего</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value stat-passed" id="statPassed">0</div>
+                    <div class="stat-label">Пройдено</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value stat-failed" id="statFailed">0</div>
+                    <div class="stat-label">Провалено</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value stat-skipped" id="statSkipped">0</div>
+                    <div class="stat-label">Пропущено</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Логи -->
+        <div class="card">
+            <h2>📜 Логи выполнения</h2>
+            <div id="logContainer" class="log-container">
+                <div class="log-line log-info">✨ Готов к запуску тестов...</div>
+            </div>
+        </div>
+
+        <!-- Алерты -->
+        <div id="alertContainer"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5001/api';
+        let runningTests = false;
+
+        // Логирование
+        function log(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const line = document.createElement('div');
+            line.className = `log-line log-${type}`;
+
+            const timestamp = new Date().toLocaleTimeString();
+            line.textContent = `[${timestamp}] ${message}`;
+
+            container.appendChild(line);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('logContainer').innerHTML = '';
+        }
+
+        // Алерты
+        function showAlert(message, type = 'info') {
+            const container = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+
+            container.appendChild(alert);
+
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        // Отключение кнопок
+        function disableButtons(disabled) {
+            document.querySelectorAll('.btn').forEach(btn => {
+                btn.disabled = disabled;
+            });
+            runningTests = disabled;
+        }
+
+        // Запуск тестов
+        async function runTests(testGroup = 'all', groupName = 'всех тестов') {
+            if (runningTests) {
+                showAlert('Тесты уже выполняются!', 'warning');
+                return;
+            }
+
+            disableButtons(true);
+            clearLog();
+            log(`🚀 Запуск ${groupName}...`, 'info');
+
+            try {
+                const response = await fetch(`${API_URL}/tests/run`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        test_group: testGroup,
+                        headed: false
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    log('✅ Все тесты пройдены успешно!', 'success');
+                    showAlert('Тесты выполнены успешно!', 'success');
+                    await loadTestStatus();
+                } else {
+                    log('❌ Некоторые тесты провалились', 'error');
+                    if (data.stderr) {
+                        log(data.stderr, 'error');
+                    }
+                    if (data.stdout) {
+                        log(data.stdout, 'info');
+                    }
+                    showAlert('Тесты завершились с ошибками', 'error');
+                    await loadTestStatus();
+                }
+            } catch (error) {
+                log(`❌ Ошибка запуска тестов: ${error.message}`, 'error');
+                showAlert('Ошибка при запуске тестов', 'error');
+            } finally {
+                disableButtons(false);
+            }
+        }
+
+        async function runAllTests() {
+            await runTests('all', 'всех тестов');
+        }
+
+        async function runTestGroup(group) {
+            const names = {
+                'create': 'CREATE тестов',
+                'read': 'READ тестов',
+                'update': 'UPDATE тестов',
+                'delete': 'DELETE тестов',
+                'scoring': 'SCORING тестов'
+            };
+            await runTests(group, names[group]);
+        }
+
+        // Очистка тестовых данных
+        async function cleanupTestData() {
+            if (runningTests) {
+                showAlert('Дождитесь завершения тестов', 'warning');
+                return;
+            }
+
+            if (!confirm('Удалить все тестовые данные из базы?')) {
+                return;
+            }
+
+            disableButtons(true);
+            log('🧹 Очистка тестовых данных...', 'warning');
+
+            try {
+                const response = await fetch(`${API_URL}/tests/cleanup`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    log(`✅ Очищено: викторин - ${data.stats.quizzes}, вопросов - ${data.stats.questions}, PDF - ${data.stats.pdfs}`, 'success');
+                    showAlert('Тестовые данные успешно очищены', 'success');
+                } else {
+                    log(`❌ Ошибка очистки: ${data.error}`, 'error');
+                    showAlert('Ошибка при очистке данных', 'error');
+                }
+            } catch (error) {
+                log(`❌ Ошибка: ${error.message}`, 'error');
+                showAlert('Ошибка при очистке данных', 'error');
+            } finally {
+                disableButtons(false);
+            }
+        }
+
+        // Загрузка статистики
+        async function loadTestStatus() {
+            try {
+                const response = await fetch(`${API_URL}/tests/status`);
+                const data = await response.json();
+
+                if (data.has_results) {
+                    document.getElementById('statsCard').style.display = 'block';
+                    document.getElementById('statTotal').textContent = data.stats.total;
+                    document.getElementById('statPassed').textContent = data.stats.passed;
+                    document.getElementById('statFailed').textContent = data.stats.failed;
+                    document.getElementById('statSkipped').textContent = data.stats.skipped;
+
+                    log(`📊 Статистика загружена: ${data.stats.passed}/${data.stats.total} пройдено`, 'info');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки статистики:', error);
+            }
+        }
+
+        // Показать HTML отчет
+        function showReport() {
+            window.open('/test-results/html-report/index.html', '_blank');
+        }
+
+        // Инициализация
+        window.addEventListener('load', () => {
+            log('✨ Панель управления тестами готова', 'success');
+            loadTestStatus();
+        });
+    </script>
+</body>
+</html>

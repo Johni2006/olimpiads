@@ -16,6 +16,11 @@ window.showEditModal = function showEditModal(questionId) {
                 renderEditForm(data.question);
                 document.getElementById('edit-modal').style.display = 'flex';
 
+                // Загружаем изображения вопроса
+                setTimeout(() => {
+                    loadQuestionImages(data.question.id);
+                }, 100);
+
                 // Загружаем изображения для вариантов ответа
                 if (data.question.options && data.question.options.length > 0) {
                     setTimeout(() => {
@@ -80,6 +85,18 @@ window.renderEditForm = function renderEditForm(question) {
                         <textarea id="edit-text" rows="4">${question.text}</textarea>
                     </div>
 
+                    <!-- Изображения к вопросу -->
+                    <div class="form-group">
+                        <label>Изображения к вопросу:</label>
+                        <div id="question-images" class="question-images"></div>
+                        <button type="button" onclick="uploadQuestionImage()" class="btn-image" style="margin-top: 10px;">
+                            🖼️ Загрузить изображение
+                        </button>
+                        <small style="display: block; margin-top: 5px; color: #888;">
+                            Изображения будут отображаться над текстом вопроса
+                        </small>
+                    </div>
+
                     <!-- Тип вопроса -->
                     <div class="form-group">
                         <label>Тип вопроса:</label>
@@ -130,6 +147,7 @@ window.renderEditForm = function renderEditForm(question) {
                                 <div class="option-edit" data-option-id="${opt.id || ''}">
                                     <input type="checkbox"
                                            id="opt-correct-${i}"
+                                           onchange="handleCorrectCheckbox(${i})"
                                            ${opt.is_correct ? 'checked' : ''}>
                                     <input type="text"
                                            id="opt-text-${i}"
@@ -224,12 +242,32 @@ window.addOption = function addOption() {
     const optionDiv = document.createElement('div');
     optionDiv.className = 'option-edit';
     optionDiv.innerHTML = `
-        <input type="checkbox" id="opt-correct-${count}">
+        <input type="checkbox" id="opt-correct-${count}" onchange="handleCorrectCheckbox(${count})">
         <input type="text" id="opt-text-${count}" placeholder="Вариант ${count + 1}">
         <button type="button" onclick="removeOption(${count})">✕</button>
     `;
 
     container.appendChild(optionDiv);
+}
+
+// Обработчик чекбокса правильного ответа
+window.handleCorrectCheckbox = function handleCorrectCheckbox(index) {
+    const questionType = document.getElementById('edit-type').value;
+
+    // Для одиночного выбора снимаем галочки с остальных вариантов
+    if (questionType === 'choice') {
+        const checkbox = document.getElementById(`opt-correct-${index}`);
+        if (checkbox && checkbox.checked) {
+            // Снимаем галочки со всех остальных вариантов
+            const container = document.getElementById('edit-options');
+            const allCheckboxes = container.querySelectorAll('input[type="checkbox"]');
+            allCheckboxes.forEach((cb, i) => {
+                if (i !== index) {
+                    cb.checked = false;
+                }
+            });
+        }
+    }
 }
 
 // Удалить вариант ответа
@@ -670,5 +708,126 @@ window.loadMatchingImages = async function loadMatchingImages(pairs) {
         } catch (error) {
             console.error('Ошибка загрузки изображений пары:', error);
         }
+    }
+}
+
+// ============== ФУНКЦИИ ДЛЯ РАБОТЫ С ИЗОБРАЖЕНИЯМИ ВОПРОСА ==============
+
+// Загрузить изображение для вопроса
+window.uploadQuestionImage = function uploadQuestionImage() {
+    if (!currentEditingQuestion || !currentEditingQuestion.id) {
+        alert('❌ Сначала сохраните вопрос, чтобы добавить изображение');
+        return;
+    }
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/jpg,image/gif,image/webp,image/svg+xml';
+
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Проверяем размер файла (макс 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('❌ Файл слишком большой. Максимальный размер: 5 МБ');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('question_id', currentEditingQuestion.id);
+        formData.append('image_type', 'question');
+
+        try {
+            const response = await fetch(`${API_URL}/images/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                displayQuestionImage(result);
+                alert('✅ Изображение успешно загружено!');
+            } else {
+                alert('❌ Ошибка: ' + result.error);
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки изображения:', error);
+            alert('❌ Ошибка загрузки изображения');
+        }
+    };
+
+    input.click();
+}
+
+// Отобразить изображение вопроса
+window.displayQuestionImage = function displayQuestionImage(imageData) {
+    const container = document.getElementById('question-images');
+    if (!container) return;
+
+    const imageDiv = document.createElement('div');
+    imageDiv.className = 'question-image-preview';
+    imageDiv.setAttribute('data-image-id', imageData.image_id || imageData.id);
+
+    imageDiv.innerHTML = `
+        <img src="${API_URL}/images/${imageData.file_path}"
+             alt="Question image"
+             style="max-width: 200px; max-height: 150px; border-radius: 4px;">
+        <button type="button"
+                onclick="deleteQuestionImage(${imageData.image_id || imageData.id})"
+                class="btn-delete-image"
+                title="Удалить изображение">✕</button>
+    `;
+
+    container.appendChild(imageDiv);
+}
+
+// Удалить изображение вопроса
+window.deleteQuestionImage = async function deleteQuestionImage(imageId) {
+    if (!confirm('Удалить это изображение?')) return;
+
+    try {
+        const response = await fetch(`${API_URL}/images/${imageId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Удаляем из UI
+            const container = document.getElementById('question-images');
+            const imageDiv = container.querySelector(`[data-image-id="${imageId}"]`);
+            if (imageDiv) {
+                imageDiv.remove();
+            }
+            alert('✅ Изображение удалено');
+        } else {
+            alert('❌ Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Ошибка удаления изображения:', error);
+        alert('❌ Ошибка удаления изображения');
+    }
+}
+
+// Загрузить существующие изображения вопроса
+window.loadQuestionImages = async function loadQuestionImages(questionId) {
+    try {
+        const response = await fetch(`${API_URL}/questions/${questionId}/images`);
+        const result = await response.json();
+
+        if (result.success && result.images && result.images.length > 0) {
+            result.images.forEach(image => {
+                displayQuestionImage({
+                    id: image.id,
+                    image_id: image.id,
+                    file_path: image.file_path
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки изображений вопроса:', error);
     }
 }

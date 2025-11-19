@@ -332,14 +332,29 @@ def create_question():
             }), 400
 
         # Создаем вопрос через DatabaseManager
-        question_id = db.add_question(data)
+        question_id = db.add_question(
+            text=data.get('text'),
+            question_type=data.get('type'),
+            options=data.get('options'),
+            matching_pairs=data.get('matching_pairs'),
+            tags=data.get('tags'),
+            difficulty=data.get('difficulty', 1),
+            points=data.get('points', 1.0),
+            explanation=data.get('explanation'),
+            source_pdf=data.get('source_pdf'),
+            page_number=data.get('page_number'),
+            correct_text=data.get('correct_text')
+        )
 
         if question_id:
+            # Получаем полный объект вопроса
+            question = db.get_question_by_id(question_id)
             return jsonify({
                 "success": True,
                 "message": "Вопрос создан",
-                "question_id": question_id
-            })
+                "question_id": question_id,
+                "question": question
+            }), 201
         else:
             return jsonify({
                 "success": False,
@@ -2310,10 +2325,15 @@ def upload_image():
 
         return jsonify({
             "success": True,
+            "id": image_id,
             "image_id": image_id,
+            "question_id": question_id,
+            "option_id": option_id,
             "file_path": relative_path,
+            "image_type": image_type,
             "width": width,
             "height": height,
+            "description": description,
             "message": "Изображение успешно загружено"
         })
 
@@ -2503,6 +2523,216 @@ def get_matching_pair_images(pair_id):
         return jsonify({
             "success": True,
             "images": images
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# ==================== АВТОТЕСТЫ ====================
+
+@app.route('/api/tests/run', methods=['POST'])
+def run_tests():
+    """
+    Запустить автотесты Playwright
+
+    Body:
+        - test_group: группа тестов (@create, @read, @update, @delete, @scoring) или "all"
+        - headed: запустить с отображением браузера (true/false)
+    """
+    try:
+        data = request.get_json() or {}
+        test_group = data.get('test_group', 'all')
+        headed = data.get('headed', False)
+
+        # Базовая директория проекта
+        project_dir = Path(__file__).parent.parent
+
+        # Формируем команду
+        cmd_parts = ['npx', 'playwright', 'test']
+
+        # Добавляем фильтр по группе
+        if test_group and test_group != 'all':
+            cmd_parts.extend(['--grep', f'@{test_group}'])
+
+        # Добавляем headed mode если нужно
+        if headed:
+            cmd_parts.append('--headed')
+
+        # Добавляем JSON reporter
+        cmd_parts.extend(['--reporter=json'])
+
+        # Запускаем тесты
+        process = subprocess.Popen(
+            cmd_parts,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(project_dir),
+            text=True
+        )
+
+        stdout, stderr = process.communicate(timeout=300)  # 5 минут таймаут
+
+        # Парсим результаты
+        results = {
+            "success": process.returncode == 0,
+            "exit_code": process.returncode,
+            "stdout": stdout,
+            "stderr": stderr,
+        }
+
+        # Пытаемся прочитать JSON отчет
+        results_file = project_dir / 'test-results' / 'results.json'
+        if results_file.exists():
+            try:
+                with open(results_file, 'r') as f:
+                    import json
+                    test_results = json.load(f)
+                    results['test_results'] = test_results
+            except:
+                pass
+
+        return jsonify(results)
+
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            "success": False,
+            "error": "Тесты превысили лимит времени выполнения (5 минут)"
+        }), 408
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/tests/cleanup', methods=['POST'])
+def cleanup_test_data():
+    """
+    Очистить все тестовые данные из базы данных
+
+    Удаляет все викторины, вопросы, изображения с префиксом [TEST]
+    """
+    try:
+        TEST_PREFIX = '[TEST]'
+        conn = db.conn
+        cursor = conn.cursor()
+
+        stats = {
+            "quizzes": 0,
+            "questions": 0,
+            "pdfs": 0,
+            "images": 0,
+            "errors": []
+        }
+
+        # 1. Удаляем тестовые викторины
+        cursor.execute("""
+            SELECT id, title FROM quizzes
+            WHERE title LIKE ?
+        """, (f'%{TEST_PREFIX}%',))
+
+        test_quizzes = cursor.fetchall()
+        for quiz_id, title in test_quizzes:
+            try:
+                cursor.execute("DELETE FROM quizzes WHERE id = ?", (quiz_id,))
+                stats["quizzes"] += 1
+            except Exception as e:
+                stats["errors"].append(f"Quiz {quiz_id}: {str(e)}")
+
+        # 2. Удаляем тестовые вопросы
+        cursor.execute("""
+            SELECT id, text FROM questions
+            WHERE text LIKE ?
+        """, (f'%{TEST_PREFIX}%',))
+
+        test_questions = cursor.fetchall()
+        for question_id, text in test_questions:
+            try:
+                cursor.execute("DELETE FROM questions WHERE id = ?", (question_id,))
+                stats["questions"] += 1
+            except Exception as e:
+                stats["errors"].append(f"Question {question_id}: {str(e)}")
+
+        # 3. Удаляем тестовые PDF
+        cursor.execute("""
+            SELECT id, display_name FROM pdf_files
+            WHERE display_name LIKE ?
+        """, (f'%{TEST_PREFIX}%',))
+
+        test_pdfs = cursor.fetchall()
+        for pdf_id, name in test_pdfs:
+            try:
+                cursor.execute("DELETE FROM pdf_files WHERE id = ?", (pdf_id,))
+                stats["pdfs"] += 1
+            except Exception as e:
+                stats["errors"].append(f"PDF {pdf_id}: {str(e)}")
+
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Тестовые данные очищены",
+            "stats": stats
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/tests/status', methods=['GET'])
+def get_test_status():
+    """
+    Получить статус автотестов
+
+    Возвращает информацию о последнем запуске тестов
+    """
+    try:
+        project_dir = Path(__file__).parent.parent
+        results_file = project_dir / 'test-results' / 'results.json'
+
+        if not results_file.exists():
+            return jsonify({
+                "success": True,
+                "has_results": False,
+                "message": "Тесты еще не запускались"
+            })
+
+        # Читаем результаты
+        with open(results_file, 'r') as f:
+            import json
+            results = json.load(f)
+
+        # Подсчитываем статистику
+        stats = {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "skipped": 0
+        }
+
+        if 'suites' in results:
+            for suite in results['suites']:
+                for spec in suite.get('specs', []):
+                    stats["total"] += 1
+                    if spec.get('ok'):
+                        stats["passed"] += 1
+                    elif any(test.get('status') == 'skipped' for test in spec.get('tests', [])):
+                        stats["skipped"] += 1
+                    else:
+                        stats["failed"] += 1
+
+        return jsonify({
+            "success": True,
+            "has_results": True,
+            "stats": stats,
+            "results": results
         })
 
     except Exception as e:

@@ -1,0 +1,24 @@
+{
+  "name": "aditi-quiz-testing",
+  "version": "1.0.0",
+  "description": "E2E тестирование системы викторин",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:create": "playwright test --grep @create",
+    "test:read": "playwright test --grep @read",
+    "test:update": "playwright test --grep @update",
+    "test:delete": "playwright test --grep @delete",
+    "test:scoring": "playwright test --grep @scoring",
+    "report": "playwright show-report",
+    "cleanup": "playwright test tests/utils/cleanup.spec.js"
+  },
+  "keywords": ["testing", "e2e", "playwright", "quiz"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

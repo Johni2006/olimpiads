@@ -405,6 +405,17 @@
                     </div>
                 ` : ''}
 
+                ${question.type === 'text' || question.type === 'essay' ? `
+                    <div class="form-group" style="margin: 20px 0;">
+                        <label>Ваш ответ:</label>
+                        <textarea id="text-answer"
+                                  rows="${question.type === 'essay' ? '10' : '3'}"
+                                  placeholder="Введите ваш ответ здесь..."
+                                  style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em;"
+                                  oninput="handleTextAnswer(this.value)">${userAnswers[currentQuestionIndex] || ''}</textarea>
+                    </div>
+                ` : ''}
+
                 <div class="navigation-buttons">
                     ${currentQuestionIndex > 0 ? `
                         <button class="btn-secondary" onclick="previousQuestion()">← Назад</button>
@@ -420,6 +431,17 @@
                     `}
                 </div>
             `;
+        }
+
+        // Обработка текстового ответа
+        function handleTextAnswer(value) {
+            userAnswers[currentQuestionIndex] = value.trim();
+
+            // Активируем/деактивируем кнопку "Далее"
+            const nextBtn = document.getElementById('next-btn');
+            if (nextBtn) {
+                nextBtn.disabled = !value.trim();
+            }
         }
 
         // Выбрать ответ
@@ -452,7 +474,31 @@
         }
 
         // Следующий вопрос
-        function nextQuestion() {
+        async function nextQuestion() {
+            // Сохраняем текстовый ответ перед переходом
+            const question = quiz.questions[currentQuestionIndex];
+            if (question.type === 'text' || question.type === 'essay') {
+                const answer = userAnswers[currentQuestionIndex];
+                if (answer) {
+                    const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
+                    try {
+                        await fetch(`${API_URL}/quizzes/session/${sessionId}/answer`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                question_id: question.id,
+                                answer: answer,
+                                time_spent: timeSpent
+                            })
+                        });
+                    } catch (error) {
+                        console.error('Ошибка отправки ответа:', error);
+                    }
+                }
+            }
+
             if (currentQuestionIndex < quiz.questions.length - 1) {
                 currentQuestionIndex++;
                 showQuestion();
