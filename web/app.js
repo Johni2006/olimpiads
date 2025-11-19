@@ -4,11 +4,6 @@ const API_URL = 'http://localhost:5001/api';
 console.log('=== app.js загружен ===');
 window.APP_VERSION = '4.0';
 
-// Глобальное состояние
-let currentTest = null;
-let currentQuestionIndex = 0;
-let testAnswers = [];
-
 // =========================
 // Инициализация
 // =========================
@@ -70,7 +65,6 @@ async function loadFilters() {
 
             // Предметы
             populateSelect('filter-subject', filters.subjects);
-            populateSelect('test-subject', filters.subjects);
 
             // Университеты
             populateSelect('filter-university', filters.universities);
@@ -398,161 +392,6 @@ function getTypeLabel(type) {
         'essay': 'Эссе'
     };
     return labels[type] || type;
-}
-
-// =========================
-// Тестирование
-// =========================
-
-async function startTest() {
-    const subject = document.getElementById('test-subject').value;
-    const count = parseInt(document.getElementById('test-count').value) || 10;
-
-    const container = document.getElementById('test-container');
-    container.innerHTML = '<div class="loading">Загрузка теста...</div>';
-
-    try {
-        const params = new URLSearchParams({ count });
-        if (subject) params.append('subject', subject);
-
-        const response = await fetch(`${API_URL}/random?${params}`);
-        const data = await response.json();
-
-        if (data.success && data.questions.length > 0) {
-            currentTest = data.questions;
-            currentQuestionIndex = 0;
-            testAnswers = new Array(currentTest.length).fill(null);
-            displayTestQuestion();
-        } else {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <h3>Недостаточно вопросов</h3>
-                    <p>Выберите другой предмет или импортируйте больше вопросов</p>
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки теста:', error);
-    }
-}
-
-function displayTestQuestion() {
-    const container = document.getElementById('test-container');
-    const question = currentTest[currentQuestionIndex];
-    const progress = ((currentQuestionIndex + 1) / currentTest.length * 100).toFixed(0);
-
-    container.innerHTML = `
-        <div class="progress-bar">
-            <div class="progress-fill" style="width: ${progress}%">
-                ${currentQuestionIndex + 1} / ${currentTest.length}
-            </div>
-        </div>
-
-        <div class="question-card">
-            <div class="question-text">
-                <strong>Вопрос ${currentQuestionIndex + 1}:</strong> ${question.text}
-            </div>
-
-            ${question.options && question.options.length > 0 ? `
-                <div class="options">
-                    ${question.options.map((opt, i) => `
-                        <div class="option" onclick="selectOption(${i})" data-option-index="${i}">
-                            ${i + 1}. ${opt.text}
-                        </div>
-                    `).join('')}
-                </div>
-            ` : ''}
-
-            <div style="margin-top: 20px; display: flex; gap: 10px;">
-                ${currentQuestionIndex > 0 ? `
-                    <button onclick="previousQuestion()">← Назад</button>
-                ` : ''}
-                ${currentQuestionIndex < currentTest.length - 1 ? `
-                    <button onclick="nextQuestion()">Далее →</button>
-                ` : `
-                    <button onclick="finishTest()">✓ Завершить тест</button>
-                `}
-            </div>
-        </div>
-    `;
-}
-
-function selectOption(optionIndex) {
-    // Убираем выделение со всех опций
-    document.querySelectorAll('.option').forEach(opt => {
-        opt.classList.remove('selected');
-    });
-
-    // Выделяем выбранную опцию
-    const selectedOption = document.querySelector(`[data-option-index="${optionIndex}"]`);
-    selectedOption.classList.add('selected');
-
-    // Сохраняем ответ
-    const question = currentTest[currentQuestionIndex];
-    testAnswers[currentQuestionIndex] = question.options[optionIndex].text;
-}
-
-function nextQuestion() {
-    if (currentQuestionIndex < currentTest.length - 1) {
-        currentQuestionIndex++;
-        displayTestQuestion();
-    }
-}
-
-function previousQuestion() {
-    if (currentQuestionIndex > 0) {
-        currentQuestionIndex--;
-        displayTestQuestion();
-    }
-}
-
-async function finishTest() {
-    const container = document.getElementById('test-container');
-    container.innerHTML = '<div class="loading">Проверка ответов...</div>';
-
-    let correctCount = 0;
-
-    // Проверяем каждый ответ
-    for (let i = 0; i < currentTest.length; i++) {
-        const question = currentTest[i];
-        const userAnswer = testAnswers[i];
-
-        if (userAnswer) {
-            try {
-                const response = await fetch(`${API_URL}/check_answer`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        question_id: question.id,
-                        answer: userAnswer
-                    })
-                });
-
-                const data = await response.json();
-                if (data.success && data.is_correct) {
-                    correctCount++;
-                }
-            } catch (error) {
-                console.error('Ошибка проверки ответа:', error);
-            }
-        }
-    }
-
-    // Показываем результаты
-    const percentage = (correctCount / currentTest.length * 100).toFixed(0);
-
-    container.innerHTML = `
-        <div class="test-result">
-            <h2>🎉 Тест завершён!</h2>
-            <div class="score">${percentage}%</div>
-            <p style="font-size: 1.3em; margin: 20px 0;">
-                Правильных ответов: <strong>${correctCount}</strong> из <strong>${currentTest.length}</strong>
-            </p>
-            <button onclick="startTest()">🔄 Пройти ещё раз</button>
-        </div>
-    `;
 }
 
 // =========================
