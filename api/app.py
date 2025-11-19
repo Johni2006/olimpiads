@@ -3553,10 +3553,32 @@ def manage_quiz_invitations(quiz_id):
                 cursor.execute("SELECT * FROM invitation_details WHERE id = ?", (invitation_id,))
                 invitation = dict(cursor.fetchone())
 
+                # Отправляем email если настроен и указан email студента
+                invitation_link = f"{request.host_url}quiz.html?token={unique_token}"
+
+                if email_service and data.get('student_email'):
+                    # Получаем название викторины
+                    cursor.execute("SELECT name FROM quizzes WHERE id = ?", (quiz_id,))
+                    quiz_row = cursor.fetchone()
+                    quiz_name = quiz_row['name'] if quiz_row else f"Викторина #{quiz_id}"
+
+                    try:
+                        email_service.send_quiz_invitation(
+                            student_name=data['student_name'],
+                            student_email=data['student_email'],
+                            quiz_name=quiz_name,
+                            invitation_link=invitation_link,
+                            expires_at=data.get('expires_at'),
+                            teacher_name=data.get('created_by'),
+                            notes=data.get('notes')
+                        )
+                    except Exception as email_error:
+                        print(f"⚠️  Ошибка отправки email: {email_error}")
+
                 return jsonify({
                     "success": True,
                     "invitation": invitation,
-                    "link": f"{request.host_url}quiz.html?token={unique_token}"
+                    "link": invitation_link
                 }), 201
 
         except Exception as e:
@@ -3758,6 +3780,15 @@ try:
 except Exception as e:
     gemini_service = None
     print(f"⚠️  Gemini AI не инициализирован: {e}")
+
+# Инициализируем Email сервис (если настроен SMTP)
+try:
+    from api.email_service import EmailService
+    email_service = EmailService()
+    print("✅ Email сервис инициализирован")
+except Exception as e:
+    email_service = None
+    print(f"⚠️  Email сервис не инициализирован: {e}")
 
 
 @app.route('/api/ai/analyze-essay', methods=['POST'])
