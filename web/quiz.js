@@ -66,6 +66,9 @@ function displayQuizzes(quizzes) {
                         <button onclick="toggleQuizStatus(${quiz.id}, '${isDraft ? 'ready' : 'draft'}')" class="btn-secondary" style="padding: 8px 15px; background: ${statusColor};">
                             ${statusButtonText}
                         </button>
+                        <button onclick="viewQuizQuestions(${quiz.id}, '${quiz.title.replace(/'/g, "\\'")}')" class="btn-secondary" style="padding: 8px 15px;">
+                            📝 Вопросы
+                        </button>
                         <button onclick="copyQuizLink('${quiz.unique_code}')" class="btn-secondary" style="padding: 8px 15px;">
                             📋 Ссылка
                         </button>
@@ -300,6 +303,132 @@ async function deleteQuiz(quizId) {
     } catch (error) {
         console.error('Ошибка удаления викторины:', error);
         alert('❌ Ошибка удаления викторины');
+    }
+}
+
+// Просмотр вопросов викторины
+async function viewQuizQuestions(quizId, quizTitle) {
+    try {
+        const response = await fetch(`${API_URL}/quizzes/${quizId}/questions`);
+        const data = await response.json();
+
+        if (!data.success) {
+            alert(`❌ Ошибка: ${data.error}`);
+            return;
+        }
+
+        const questions = data.questions || [];
+
+        // Создаем модальное окно
+        const modal = document.getElementById('edit-modal');
+        if (!modal) return;
+
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 900px;">
+                <div class="modal-header">
+                    <h2>📝 Вопросы викторины: ${quizTitle}</h2>
+                    <button class="close-btn" onclick="closeEditModal()">✕</button>
+                </div>
+                <div class="modal-body">
+                    ${questions.length === 0 ? `
+                        <div style="text-align: center; padding: 40px; color: #999;">
+                            <p style="font-size: 18px;">В этой викторине пока нет вопросов</p>
+                            <p style="margin-top: 10px;">Перейдите на вкладку "Просмотр вопросов" и добавьте вопросы в викторину</p>
+                        </div>
+                    ` : `
+                        <div style="margin-bottom: 20px; padding: 15px; background: #f0f8ff; border-radius: 8px;">
+                            <p style="margin: 0; color: #555;">
+                                Всего вопросов в викторине: <strong>${questions.length}</strong>
+                            </p>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 15px;">
+                            ${questions.map((q, index) => {
+                                const typeIcon = {
+                                    'choice': '🔘',
+                                    'multiple_choice': '☑️',
+                                    'text': '📝',
+                                    'essay': '📄',
+                                    'matching': '🔗'
+                                }[q.type] || '❓';
+
+                                const typeText = {
+                                    'choice': 'Одиночный выбор',
+                                    'multiple_choice': 'Множественный выбор',
+                                    'text': 'Текстовый ответ',
+                                    'essay': 'Эссе',
+                                    'matching': 'Соответствие'
+                                }[q.type] || q.type;
+
+                                let answersHTML = '';
+                                if (q.type === 'choice' || q.type === 'multiple_choice') {
+                                    answersHTML = `
+                                        <div style="margin-top: 10px;">
+                                            <strong>Варианты ответов:</strong>
+                                            <ul style="margin-top: 5px; padding-left: 20px;">
+                                                ${(q.options || []).map(opt => `
+                                                    <li style="color: ${opt.is_correct ? '#4caf50' : '#666'};">
+                                                        ${opt.text} ${opt.is_correct ? '✓ (правильный)' : ''}
+                                                    </li>
+                                                `).join('')}
+                                            </ul>
+                                        </div>
+                                    `;
+                                } else if (q.type === 'text') {
+                                    answersHTML = `
+                                        <div style="margin-top: 10px;">
+                                            <strong>Правильный ответ:</strong> ${q.correct_text || '-'}
+                                        </div>
+                                    `;
+                                } else if (q.type === 'matching') {
+                                    answersHTML = `
+                                        <div style="margin-top: 10px;">
+                                            <strong>Пары для сопоставления:</strong>
+                                            <ul style="margin-top: 5px; padding-left: 20px;">
+                                                ${(q.matching_pairs || []).map(pair => `
+                                                    <li>${pair.left_text} → ${pair.right_text}</li>
+                                                `).join('')}
+                                            </ul>
+                                        </div>
+                                    `;
+                                }
+
+                                const tagsHTML = (q.tags && q.tags.length > 0) ? `
+                                    <div style="margin-top: 10px;">
+                                        ${q.tags.map(tag => `
+                                            <span style="display: inline-block; padding: 4px 10px; background: #e3f2fd; color: #1976d2; border-radius: 12px; font-size: 12px; margin-right: 5px;">
+                                                ${tag}
+                                            </span>
+                                        `).join('')}
+                                    </div>
+                                ` : '';
+
+                                return `
+                                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: white;">
+                                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                                            <div style="flex: 1;">
+                                                <div style="font-size: 14px; color: #999; margin-bottom: 5px;">
+                                                    Вопрос ${index + 1} • ${typeIcon} ${typeText} • ${q.points || 1} баллов
+                                                </div>
+                                                <div style="font-size: 16px; font-weight: 500; color: #333;">
+                                                    ${q.text}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        ${answersHTML}
+                                        ${tagsHTML}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+
+        modal.style.display = 'flex';
+    } catch (error) {
+        console.error('Ошибка загрузки вопросов:', error);
+        alert('❌ Ошибка загрузки вопросов викторины');
     }
 }
 

@@ -1089,13 +1089,36 @@ def attempt_details(session_id):
         }), 500
 
 
-@app.route('/api/quizzes/<int:quiz_id>/questions', methods=['POST', 'DELETE'])
+@app.route('/api/quizzes/<int:quiz_id>/questions', methods=['GET', 'POST', 'DELETE'])
 def quiz_questions(quiz_id):
     """
+    GET: Получить список вопросов викторины
     POST: Добавить вопрос в викторину
     DELETE: Удалить вопрос из викторины
     """
-    if request.method == 'POST':
+    if request.method == 'GET':
+        try:
+            # Получаем вопросы викторины
+            questions = db.get_quiz_questions(quiz_id)
+
+            if questions is None:
+                return jsonify({
+                    "success": False,
+                    "error": "Викторина не найдена"
+                }), 404
+
+            return jsonify({
+                "success": True,
+                "questions": questions
+            })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    elif request.method == 'POST':
         try:
             data = request.get_json()
 

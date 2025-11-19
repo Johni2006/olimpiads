@@ -318,6 +318,26 @@ class QuizManager:
             """, (status, quiz_id))
             return cursor.rowcount > 0
 
+    def get_quiz_questions(self, quiz_id: int) -> Optional[List[Dict]]:
+        """
+        Получить вопросы викторины (публичный метод)
+
+        Args:
+            quiz_id: ID викторины
+
+        Returns:
+            Список вопросов или None если викторина не найдена
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем существование викторины
+            cursor.execute("SELECT id FROM quizzes WHERE id = ?", (quiz_id,))
+            if not cursor.fetchone():
+                return None
+
+            return self._get_quiz_questions(quiz_id)
+
     def _get_quiz_questions(self, quiz_id: int) -> List[Dict]:
         """Получить вопросы викторины"""
         with self.get_connection() as conn:
