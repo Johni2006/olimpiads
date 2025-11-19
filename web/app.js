@@ -45,9 +45,12 @@ function switchTab(tabName) {
         loadStats();
     } else if (tabName === 'pdfs') {
         loadPDFList();
+    } else if (tabName === 'quizzes') {
+        loadDefaultTeacher();
     } else if (tabName === 'admin') {
         loadAdminStats();
         loadSourcesList();
+        loadSettings();
         loadDownloaderStats();
         loadSubjectsList();
     }
@@ -2163,6 +2166,77 @@ async function deleteSubject(subject) {
     } catch (error) {
         console.error('Ошибка удаления предмета:', error);
         alert('❌ Ошибка удаления предмета');
+    }
+}
+
+// =========================
+// Настройки приложения
+// =========================
+
+async function loadSettings() {
+    try {
+        const response = await fetch(`${API_URL}/settings`);
+        const data = await response.json();
+
+        if (data.success) {
+            // Заполняем поля настроек
+            const teacherNameInput = document.getElementById('default-teacher-name');
+            if (teacherNameInput && data.settings.default_teacher_name) {
+                teacherNameInput.value = data.settings.default_teacher_name.value || '';
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки настроек:', error);
+    }
+}
+
+async function saveSettings() {
+    try {
+        const teacherName = document.getElementById('default-teacher-name').value.trim();
+        const statusDiv = document.getElementById('settings-status');
+
+        // Сохраняем настройку учителя
+        const response = await fetch(`${API_URL}/settings/default_teacher_name`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                value: teacherName
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            statusDiv.innerHTML = '<div style="color: #4caf50; padding: 10px; background: #e8f5e9; border-radius: 5px;">✅ Настройки сохранены успешно!</div>';
+            setTimeout(() => {
+                statusDiv.innerHTML = '';
+            }, 3000);
+        } else {
+            statusDiv.innerHTML = `<div style="color: #f44336; padding: 10px; background: #ffebee; border-radius: 5px;">❌ Ошибка: ${data.error}</div>`;
+        }
+    } catch (error) {
+        console.error('Ошибка сохранения настроек:', error);
+        const statusDiv = document.getElementById('settings-status');
+        statusDiv.innerHTML = '<div style="color: #f44336; padding: 10px; background: #ffebee; border-radius: 5px;">❌ Ошибка сохранения настроек</div>';
+    }
+}
+
+async function loadDefaultTeacher() {
+    try {
+        const response = await fetch(`${API_URL}/settings/default_teacher_name`);
+        const data = await response.json();
+
+        if (data.success && data.value) {
+            const teacherInput = document.getElementById('quiz-creator');
+            if (teacherInput && !teacherInput.value) {
+                // Подставляем только если поле пустое
+                teacherInput.value = data.value;
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки учителя по умолчанию:', error);
     }
 }
 

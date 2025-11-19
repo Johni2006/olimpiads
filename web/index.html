@@ -1032,6 +1032,23 @@
             <div id="admin" class="tab-content">
                 <h2>Администрирование системы</h2>
 
+                <!-- Настройки -->
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3>⚙️ Настройки приложения</h3>
+
+                    <div style="background: white; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                        <div class="form-group">
+                            <label>Учитель по умолчанию</label>
+                            <input type="text" id="default-teacher-name" placeholder="Введите имя учителя по умолчанию">
+                            <p style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                                Это имя будет автоматически подставляться при создании новых викторин
+                            </p>
+                        </div>
+                        <button onclick="saveSettings()" style="margin-top: 10px;">💾 Сохранить настройки</button>
+                        <div id="settings-status" style="margin-top: 10px;"></div>
+                    </div>
+                </div>
+
                 <!-- Загрузка из сети -->
                 <div style="background: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
                     <h3>🌐 Загрузка из сети</h3>

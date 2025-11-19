@@ -1154,6 +1154,125 @@ def pdf_details(pdf_id):
 
 
 # ============================================================================
+# НАСТРОЙКИ
+# ============================================================================
+
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    """Получить все настройки"""
+    try:
+        conn = db.conn
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT key, value, description, updated_at
+            FROM settings
+            ORDER BY key
+        """)
+
+        settings = {}
+        for row in cursor.fetchall():
+            settings[row[0]] = {
+                "value": row[1],
+                "description": row[2],
+                "updated_at": row[3]
+            }
+
+        return jsonify({
+            "success": True,
+            "settings": settings
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/settings/<key>', methods=['GET', 'PUT'])
+def manage_setting(key):
+    """
+    GET: Получить конкретную настройку
+    PUT: Обновить настройку
+
+    PUT Body:
+        {
+            "value": "новое значение"
+        }
+    """
+    if request.method == 'GET':
+        try:
+            conn = db.conn
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT value, description, updated_at
+                FROM settings
+                WHERE key = ?
+            """, (key,))
+
+            result = cursor.fetchone()
+
+            if not result:
+                return jsonify({
+                    "success": False,
+                    "error": "Настройка не найдена"
+                }), 404
+
+            return jsonify({
+                "success": True,
+                "key": key,
+                "value": result[0],
+                "description": result[1],
+                "updated_at": result[2]
+            })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    elif request.method == 'PUT':
+        try:
+            data = request.get_json()
+
+            if not data or 'value' not in data:
+                return jsonify({
+                    "success": False,
+                    "error": "Необходимо указать value"
+                }), 400
+
+            conn = db.conn
+            cursor = conn.cursor()
+
+            # Обновляем или создаем настройку
+            cursor.execute("""
+                INSERT INTO settings (key, value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (key, data['value']))
+
+            conn.commit()
+
+            return jsonify({
+                "success": True,
+                "key": key,
+                "value": data['value'],
+                "message": "Настройка обновлена"
+            })
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+
+# ============================================================================
 # АДМИНИСТРАТИВНЫЕ ЭНДПОИНТЫ
 # ============================================================================
 
