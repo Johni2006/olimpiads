@@ -1,32 +1,8 @@
 // Функции для работы с викторинами
 
-let selectedQuestions = []; // Вопросы выбранные вручную
-let pdfQuestions = []; // Вопросы из выбранного PDF
 let allQuizzes = []; // Все созданные викторины
 
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
-
-// Загрузить список PDF файлов
-async function loadPDFListForQuiz() {
-    try {
-        const response = await fetch(`${API_URL}/source-pdfs`);
-        const data = await response.json();
-
-        if (data.success) {
-            const select = document.getElementById('pdf-select');
-            select.innerHTML = '<option value="">-- Выберите PDF --</option>';
-
-            data.pdfs.forEach(pdf => {
-                const option = document.createElement('option');
-                option.value = pdf.path;
-                option.textContent = `${pdf.filename} (${pdf.question_count} вопросов)`;
-                select.appendChild(option);
-            });
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки списка PDF:', error);
-    }
-}
 
 // Загрузить список викторин
 async function loadQuizzes() {
@@ -109,85 +85,10 @@ function displayQuizzes(quizzes) {
 
 // ==================== СОЗДАНИЕ ВИКТОРИНЫ ====================
 
-function showPdfSelector() {
-    document.getElementById('pdf-selector').style.display = 'block';
-    document.getElementById('manual-selector').style.display = 'none';
-    loadPDFListForQuiz();
-}
-
-function showManualSelector() {
-    document.getElementById('pdf-selector').style.display = 'none';
-    document.getElementById('manual-selector').style.display = 'block';
-    updateSelectedQuestionsDisplay();
-}
-
-// Загрузить вопросы из выбранного PDF
-async function loadQuestionsFromPdf() {
-    const pdfPath = document.getElementById('pdf-select').value;
-
-    if (!pdfPath) {
-        document.getElementById('pdf-questions-preview').innerHTML = '';
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_URL}/questions/by-pdf?source_pdf=${encodeURIComponent(pdfPath)}`);
-        const data = await response.json();
-
-        if (data.success) {
-            pdfQuestions = data.questions;
-
-            document.getElementById('pdf-questions-preview').innerHTML = `
-                <div style="padding: 15px; background: #f5f5f5; border-radius: 8px;">
-                    <p><strong>Найдено вопросов:</strong> ${data.count}</p>
-                    <p style="color: #666; margin-top: 5px;">Все вопросы из этого PDF будут добавлены в викторину</p>
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки вопросов из PDF:', error);
-    }
-}
-
-// Добавить вопрос в викторину (вызывается из displayQuestions)
-function addQuestionToQuiz(questionId) {
-    if (!selectedQuestions.includes(questionId)) {
-        selectedQuestions.push(questionId);
-        updateSelectedQuestionsDisplay();
-        alert('✅ Вопрос добавлен в викторину');
-    } else {
-        alert('⚠️ Этот вопрос уже добавлен');
-    }
-}
-
-// Удалить вопрос из викторины
-function removeQuestionFromQuiz(questionId) {
-    selectedQuestions = selectedQuestions.filter(id => id !== questionId);
-    updateSelectedQuestionsDisplay();
-}
-
-// Обновить отображение выбранных вопросов
-function updateSelectedQuestionsDisplay() {
-    const container = document.getElementById('selected-questions');
-
-    if (selectedQuestions.length === 0) {
-        container.innerHTML = '<p style="color: #999;">Нет выбранных вопросов. Перейдите на вкладку "Просмотр вопросов" и добавьте вопросы.</p>';
-        return;
-    }
-
-    container.innerHTML = `
-        <div style="padding: 15px; background: #f5f5f5; border-radius: 8px;">
-            <p><strong>Выбрано вопросов:</strong> ${selectedQuestions.length}</p>
-            <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 5px;">
-                ${selectedQuestions.map(id => `
-                    <span class="tag" style="cursor: pointer;" onclick="removeQuestionFromQuiz(${id})">
-                        Вопрос #${id} ✕
-                    </span>
-                `).join('')}
-            </div>
-        </div>
-    `;
-}
+// Функции для ручного выбора вопросов (showPdfSelector, showManualSelector, loadQuestionsFromPdf)
+// были удалены, так как не используются в текущем интерфейсе.
+// Вместо этого используется функция addQuestionToQuiz() из app.js,
+// которая показывает список существующих викторин и добавляет вопросы туда.
 
 // Создать викторину
 async function createQuiz() {
